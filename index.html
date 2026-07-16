@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Gefühlstagebuch</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -29,7 +29,7 @@
     --ok:#5fdd9d;
   }
   *{box-sizing:border-box;}
-  html,body{margin:0;padding:0;}
+  html,body{margin:0;padding:0;touch-action:pan-x pan-y;}
   body{
     background:radial-gradient(1200px 800px at 80% -10%, #0f2438 0%, var(--ink) 55%);
     color:var(--cream);
@@ -111,7 +111,8 @@
   textarea{
     width:100%;background:var(--panel-soft);border:1px solid var(--line);
     color:var(--cream);border-radius:8px;padding:10px 12px;
-    font-family:'Inter';font-size:14px;resize:vertical;min-height:64px;
+    font-family:'Inter';font-size:16px;resize:vertical;min-height:64px;
+    /* 16px verhindert den Auto-Zoom von iOS beim Antippen des Feldes */
   }
 
   button.primary{
@@ -796,6 +797,11 @@ function renderAnalysis(){
 /* ============================================================
    START
    ============================================================ */
+/* Zoom unterbinden: iOS ignoriert user-scalable=no teilweise,
+   deshalb zusätzlich Pinch-Geste und Doppeltipp abfangen */
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('dblclick', e => e.preventDefault());
+
 buildScales();
 setSchlaf(7);
 initFirebase();
