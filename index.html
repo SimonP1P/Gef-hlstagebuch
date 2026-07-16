@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gefühlstagebuch</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
+<style>
+  :root{
+    --ink:#0a0e15;
+    --panel:#121826;
+    --panel-soft:#1a2334;
+    --cream:#f2f6fa;
+    --cream-dim:#9db0c7;
+    --accent:#45c1ff;
+    --accent-soft:#9adcff;
+    --accent2:#7f96b8;
+    --gold:#ffd166;
+    --line:#233045;
+    --danger:#ff8095;
+    --ok:#5fdd9d;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:radial-gradient(1200px 800px at 80% -10%, #0f2438 0%, var(--ink) 55%);
+    color:var(--cream);
+    font-family:'Inter', sans-serif;
+    min-height:100vh;
+    padding-bottom:60px;
+    -webkit-tap-highlight-color:transparent;
+  }
+  h1,h2,h3{font-family:'Fraunces', serif;font-weight:600;letter-spacing:0.2px;}
+
+  header{padding:38px 24px 18px;max-width:760px;margin:0 auto;}
+  header .eyebrow{text-transform:uppercase;font-size:11px;letter-spacing:2.5px;color:var(--accent-soft);margin-bottom:8px;}
+  header h1{font-size:32px;margin:0 0 6px;font-style:italic;}
+  header p{color:var(--cream-dim);font-size:14px;margin:0;max-width:520px;line-height:1.5;}
+
+  nav{max-width:760px;margin:22px auto 0;padding:0 24px;display:flex;gap:6px;border-bottom:1px solid var(--line);}
+  nav button{background:none;border:none;color:var(--cream-dim);font-family:'Inter';font-size:14px;font-weight:500;padding:10px 16px;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s ease;}
+  nav button.active{color:var(--cream);border-bottom:2px solid var(--accent);}
+  nav button:hover{color:var(--cream);}
+
+  main{max-width:760px;margin:0 auto;padding:28px 24px 0;}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:26px;margin-bottom:20px;}
+  .card h2{font-size:19px;margin:0 0 4px;}
+  .card .sub{color:var(--cream-dim);font-size:13px;margin:0 0 6px;line-height:1.5;}
+
+  .entry-meta{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:14px 0 4px;}
+  .entry-meta .when{font-size:12px;color:var(--cream-dim);}
+
+  .sect-title{
+    font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--accent2);
+    margin:30px 0 18px;padding-bottom:7px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:8px;
+  }
+  .sect-title:first-of-type{margin-top:18px;}
+
+  /* ---- Tap-Skala ---- */
+  .scale{margin-bottom:24px;}
+  .scale-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;gap:10px;}
+  .scale-label{font-size:14px;font-weight:500;color:var(--cream);}
+  .scale-value{font-family:'Fraunces',serif;font-style:italic;color:var(--accent-soft);font-size:17px;min-width:22px;text-align:right;}
+  .scale-btns{display:flex;gap:4px;}
+  .scale-btns button{
+    flex:1;min-width:0;height:42px;border-radius:8px;
+    border:1px solid var(--line);background:var(--panel-soft);
+    color:var(--cream-dim);font:500 13px 'Inter';cursor:pointer;padding:0;
+    transition:background .12s,border-color .12s,color .12s;
+  }
+  .scale-btns button:hover{border-color:var(--accent);color:var(--cream);}
+  .scale-btns button.sel{background:var(--accent);border-color:var(--accent);color:var(--ink);font-weight:600;}
+  .scale-anchors{display:flex;justify-content:space-between;font-size:11px;color:var(--cream-dim);margin-top:5px;}
+  .scale.missing .scale-btns{outline:2px solid var(--danger);outline-offset:3px;border-radius:10px;}
+
+  /* ---- Stepper ---- */
+  .stepper-block{margin-bottom:24px;}
+  .stepper-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;}
+  .stepper-head .scale-label{font-size:14px;font-weight:500;}
+  .stepper{display:flex;align-items:center;gap:16px;}
+  .stepper button{
+    width:48px;height:48px;border-radius:10px;background:var(--panel-soft);
+    border:1px solid var(--line);color:var(--cream);font-size:22px;cursor:pointer;line-height:1;
+    transition:border-color .12s;
+  }
+  .stepper button:hover{border-color:var(--accent);}
+  .stepper-val{font-family:'Fraunces',serif;font-size:22px;font-style:italic;color:var(--cream);min-width:86px;text-align:center;}
+
+  /* ---- Chips ---- */
+  .chip-row{display:flex;flex-wrap:wrap;gap:8px;}
+  .chip{
+    padding:10px 15px;border-radius:22px;border:1px solid var(--line);
+    background:var(--panel-soft);color:var(--cream-dim);font-size:13px;
+    cursor:pointer;user-select:none;transition:all .15s ease;
+  }
+  .chip.active{background:var(--accent);border-color:var(--accent);color:var(--ink);font-weight:600;}
+  .field{margin-bottom:24px;}
+  .field > .scale-label{display:block;margin-bottom:10px;}
+  .field .hint{font-size:12px;color:var(--cream-dim);margin-top:7px;}
+
+  textarea{
+    width:100%;background:var(--panel-soft);border:1px solid var(--line);
+    color:var(--cream);border-radius:8px;padding:10px 12px;
+    font-family:'Inter';font-size:14px;resize:vertical;min-height:64px;
+  }
+
+  button.primary{
+    background:var(--accent);color:var(--ink);border:none;font-weight:600;font-size:15px;
+    padding:14px 20px;border-radius:10px;cursor:pointer;width:100%;font-family:'Inter';
+    transition:background .15s ease;margin-top:6px;
+  }
+  button.primary:hover{background:var(--accent-soft);}
+  button.primary:disabled{opacity:.5;cursor:not-allowed;}
+
+  button.ghost{
+    background:none;border:1px solid var(--line);color:var(--cream-dim);
+    padding:8px 14px;border-radius:20px;cursor:pointer;font-size:12px;font-family:'Inter';
+    transition:all .15s;
+  }
+  button.ghost:hover{color:var(--cream);border-color:var(--accent);}
+
+  #status-msg{font-size:13px;margin-top:12px;min-height:16px;}
+  #status-msg.ok{color:var(--ok);}
+  #status-msg.err{color:var(--danger);}
+  .err-line{color:var(--danger);font-size:13px;margin:8px 0;}
+  .muted-line{color:var(--cream-dim);font-size:12px;margin:4px 0 12px;}
+
+  /* ---- Statistik-Kacheln ---- */
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;}
+  .stat .k{font-size:10px;text-transform:uppercase;letter-spacing:1.2px;color:var(--cream-dim);}
+  .stat .v{font-family:'Fraunces',serif;font-size:24px;font-style:italic;color:var(--accent-soft);margin-top:5px;}
+  .stat .v.up{color:var(--ok);}
+  .stat .v.down{color:var(--danger);}
+  .stat .v small{font-size:12px;color:var(--cream-dim);font-style:normal;font-family:'Inter';}
+
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);white-space:nowrap;}
+  th{color:var(--cream-dim);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;}
+  td{color:var(--cream);}
+  .table-wrap{overflow-x:auto;}
+  .row-del{color:var(--cream-dim);cursor:pointer;font-size:12px;}
+  .row-del:hover{color:var(--danger);}
+
+  .metric-toggles{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;}
+
+  .insight{
+    background:var(--panel-soft);border-left:3px solid var(--accent);
+    padding:12px 16px;border-radius:0 8px 8px 0;font-size:14px;line-height:1.5;margin-bottom:10px;
+  }
+  .insight b{color:var(--accent-soft);}
+  .empty{color:var(--cream-dim);font-size:14px;font-style:italic;padding:20px 0;text-align:center;}
+
+  .config-warning{
+    background:#3a2a2a;border:1px solid #6b4444;color:#f3d0d0;
+    padding:16px 20px;border-radius:10px;font-size:13px;line-height:1.6;margin-bottom:20px;
+  }
+  .config-warning code{background:#20161c;padding:2px 6px;border-radius:4px;font-size:12px;}
+
+  canvas{max-width:100%;}
+  footer{max-width:760px;margin:30px auto 0;padding:0 24px;color:var(--cream-dim);font-size:12px;text-align:center;}
+
+  @media (max-width:480px){
+    header{padding:30px 16px 12px;}
+    nav{padding:0 14px;}
+    main{padding:22px 14px 0;}
+    .card{padding:18px 14px;}
+    .scale-btns{gap:3px;}
+    .scale-btns button{height:44px;font-size:12px;border-radius:7px;}
+    .stats{gap:8px;}
+    .stat{padding:11px 10px;}
+    .stat .v{font-size:19px;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">Privates Journal</div>
+  <h1>Wie steht's um dein Herz heute?</h1>
+  <p>Ein kurzer täglicher Check-in – Datum und Uhrzeit werden automatisch mitgeloggt. Nach ein paar Wochen zeigt dir die Analyse, was wirklich zusammenhängt.</p>
+</header>
+
+<nav>
+  <button class="tab-btn active" data-tab="entry">Eintrag</button>
+  <button class="tab-btn" data-tab="history">Verlauf</button>
+  <button class="tab-btn" data-tab="analysis">Analyse</button>
+</nav>
+
+<main>
+
+  <div id="config-warning" class="config-warning" style="display:none;">
+    ⚠️ Firebase ist noch nicht konfiguriert. Trage deine Projektdaten im Script-Bereich unter <code>firebaseConfig</code> ein und lade die Seite neu.
+  </div>
+
+  <!-- ===================== TAB: EINTRAG ===================== -->
+  <section id="tab-entry" class="tab-panel">
+    <div class="card">
+      <h2>Neuer Eintrag</h2>
+      <p class="sub">Nicht überdenken – tipp einfach dein Bauchgefühl an.</p>
+      <div class="entry-meta">
+        <span class="when" id="now-display">–</span>
+        <button class="ghost" id="prefill-btn" style="display:none;">Werte vom letzten Mal übernehmen</button>
+      </div>
+
+      <div class="sect-title">♥ Sie &amp; du</div>
+      <div id="scales-s1"></div>
+
+      <div class="field">
+        <span class="scale-label">Kontakt heute</span>
+        <div class="chip-row" id="kontakt-chips">
+          <div class="chip" data-val="keiner">Keiner</div>
+          <div class="chip" data-val="chat">Chat</div>
+          <div class="chip" data-val="telefon">Telefon</div>
+          <div class="chip" data-val="treffen">Treffen</div>
+        </div>
+        <div class="hint">Mehrfachauswahl möglich (z. B. Chat + Treffen)</div>
+      </div>
+
+      <div class="sect-title">☀ Dein Tag</div>
+      <div id="scales-s2"></div>
+
+      <div class="sect-title">✦ Körper</div>
+      <div class="stepper-block">
+        <div class="stepper-head">
+          <span class="scale-label">Schlaf letzte Nacht</span>
+        </div>
+        <div class="stepper">
+          <button type="button" id="schlaf-minus" aria-label="weniger">−</button>
+          <div class="stepper-val" id="schlaf-val">7,0 h</div>
+          <button type="button" id="schlaf-plus" aria-label="mehr">+</button>
+        </div>
+      </div>
+      <div id="scales-s3"></div>
+
+      <div class="field">
+        <span class="scale-label">Heute außerdem</span>
+        <div class="chip-row" id="habit-chips">
+          <div class="chip" data-key="alkohol">🍷 Alkohol</div>
+          <div class="chip" data-key="sport">🏃 Sport</div>
+        </div>
+      </div>
+
+      <div class="sect-title">✎ Notiz</div>
+      <div class="field">
+        <textarea id="v-notizen" placeholder="Was ist heute passiert? Was fällt dir auf?"></textarea>
+      </div>
+
+      <button class="primary" id="save-btn">Eintrag speichern</button>
+      <div id="status-msg"></div>
+    </div>
+  </section>
+
+  <!-- ===================== TAB: VERLAUF ===================== -->
+  <section id="tab-history" class="tab-panel" style="display:none;">
+    <div class="stats" id="stats-row"></div>
+
+    <div class="card">
+      <h2>Verlauf</h2>
+      <p class="sub">Verliebtheit über Zeit – weitere Linien lassen sich einblenden.</p>
+      <div class="err-line" id="history-error"></div>
+      <div class="muted-line" id="loaded-count"></div>
+      <div class="metric-toggles" id="metric-toggles"></div>
+      <canvas id="history-chart" height="220"></canvas>
+    </div>
+
+    <div class="card">
+      <h2>Alle Einträge</h2>
+      <div class="table-wrap">
+        <table id="history-table">
+          <thead>
+            <tr>
+              <th>Datum</th><th>Zeit</th><th>Verl.</th><th>Vorfr.</th><th>Wohl</th>
+              <th>Unsich.</th><th>Kontakt</th><th>Stimm.</th><th>Stress</th><th>Energie</th>
+              <th>Schlaf</th><th>Hunger</th><th>Verl.(k)</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="history-tbody"></tbody>
+        </table>
+      </div>
+      <p class="empty" id="history-empty" style="display:none;">Noch keine Einträge vorhanden.</p>
+    </div>
+  </section>
+
+  <!-- ===================== TAB: ANALYSE ===================== -->
+  <section id="tab-analysis" class="tab-panel" style="display:none;">
+    <div class="card">
+      <h2>Zusammenhänge</h2>
+      <p class="sub">Automatisch berechnet aus deinen bisherigen Einträgen. Je mehr Daten, desto belastbarer.</p>
+      <div id="analysis-out"></div>
+      <p class="empty" id="analysis-empty" style="display:none;">Trage mindestens 5 Einträge ein, damit Korrelationen sinnvoll werden.</p>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  Deine Daten liegen in deiner eigenen Firebase-Firestore-Datenbank. Diese App sendet nichts an Dritte.
+</footer>
+
+<script>
+/* ============================================================
+   1) FIREBASE KONFIGURATION
+   ------------------------------------------------------------
+   Konsole: https://console.firebase.google.com
+   Benötigt: Firestore Database + Authentication (Anonym aktiviert)
+   ============================================================ */
+const firebaseConfig = {
+  apiKey: "AIzaSyABvdXuONBS12xZr2X3Jkk7GPzoetRkuOY",
+  authDomain: "verliebtheit-tracker-17906.firebaseapp.com",
+  projectId: "verliebtheit-tracker-17906",
+  storageBucket: "verliebtheit-tracker-17906.firebasestorage.app",
+  messagingSenderId: "978284822820",
+  appId: "1:978284822820:web:f50c55144f055f5f3133b1"
+};
+
+/* Empfohlene Firestore-Regeln (Firestore -> Regeln):
+
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{database}/documents {
+       match /entries/{entryId} {
+         allow read, write: if request.auth != null
+           && request.auth.uid == resource.data.uid;
+         allow create: if request.auth != null
+           && request.auth.uid == request.resource.data.uid;
+       }
+     }
+   }
+*/
+
+let db, auth, currentUid = null;
+let entries = [];
+
+function isConfigured(){
+  return firebaseConfig.apiKey && !firebaseConfig.apiKey.includes("DEIN_API_KEY");
+}
+
+function initFirebase(){
+  if(!isConfigured()){
+    document.getElementById('config-warning').style.display = 'block';
+    document.getElementById('save-btn').disabled = true;
+    return;
+  }
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.firestore();
+  auth = firebase.auth();
+
+  auth.onAuthStateChanged(user => {
+    if(user){
+      currentUid = user.uid;
+      loadEntries();
+    } else {
+      auth.signInAnonymously().catch(err => {
+        showStatus('Anmeldung fehlgeschlagen: ' + err.message, false);
+      });
+    }
+  });
+}
+
+/* ============================================================
+   2) SKALEN-DEFINITION (1–10 Tap-Buttons mit Wortankern)
+   ============================================================ */
+const SCALES = [
+  {key:'verliebtheit', label:'Verliebtheit',                        lo:'kaum',         hi:'total verliebt', sect:'s1'},
+  {key:'vorfreude',    label:'Vorfreude aufs nächste Treffen',      lo:'gering',       hi:'riesig',         sect:'s1'},
+  {key:'wohl',         label:'Wohlgefühl mit ihr',                  lo:'unwohl',       hi:'ganz bei mir',   sect:'s1'},
+  {key:'unsicherheit', label:'Unsicherheit, wie sie zu dir steht',  lo:'sehr sicher',  hi:'sehr unsicher',  sect:'s1'},
+  {key:'stimmung',     label:'Stimmung allgemein',                  lo:'mies',         hi:'super',          sect:'s2'},
+  {key:'stress',       label:'Stresslevel',                         lo:'entspannt',    hi:'am Limit',       sect:'s2'},
+  {key:'energie',      label:'Energie',                             lo:'erschöpft',    hi:'voll da',        sect:'s2'},
+  {key:'hunger',       label:'Hunger / Sättigung',                  lo:'sehr hungrig', hi:'sehr satt',      sect:'s3'},
+  {key:'verlangen',    label:'Körperliches Verlangen',              lo:'keins',        hi:'stark',          sect:'s3'},
+];
+
+const scaleValues = {};   // key -> 1..10 oder null
+SCALES.forEach(s => scaleValues[s.key] = null);
+
+function buildScales(){
+  SCALES.forEach(s => {
+    const wrap = document.createElement('div');
+    wrap.className = 'scale';
+    wrap.id = 'scale-' + s.key;
+
+    const head = document.createElement('div');
+    head.className = 'scale-head';
+    head.innerHTML = `<span class="scale-label">${s.label}</span><span class="scale-value" id="sv-${s.key}">–</span>`;
+    wrap.appendChild(head);
+
+    const btns = document.createElement('div');
+    btns.className = 'scale-btns';
+    for(let v = 1; v <= 10; v++){
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = v;
+      b.addEventListener('click', () => selectScale(s.key, v));
+      btns.appendChild(b);
+    }
+    wrap.appendChild(btns);
+
+    const anchors = document.createElement('div');
+    anchors.className = 'scale-anchors';
+    anchors.innerHTML = `<span>${s.lo}</span><span>${s.hi}</span>`;
+    wrap.appendChild(anchors);
+
+    document.getElementById('scales-' + s.sect).appendChild(wrap);
+  });
+}
+
+function selectScale(key, v){
+  scaleValues[key] = v;
+  const wrap = document.getElementById('scale-' + key);
+  wrap.classList.remove('missing');
+  wrap.querySelectorAll('.scale-btns button').forEach((b, i) => {
+    b.classList.toggle('sel', i + 1 === v);
+  });
+  document.getElementById('sv-' + key).textContent = v;
+}
+
+function clearScaleSelection(key){
+  scaleValues[key] = null;
+  const wrap = document.getElementById('scale-' + key);
+  wrap.querySelectorAll('.scale-btns button').forEach(b => b.classList.remove('sel'));
+  document.getElementById('sv-' + key).textContent = '–';
+}
+
+function updatePrefillButton(){
+  document.getElementById('prefill-btn').style.display = entries.length ? 'inline-block' : 'none';
+}
+
+/* "Werte vom letzten Mal übernehmen" */
+document.getElementById('prefill-btn').addEventListener('click', () => {
+  const last = entries.length ? entries[entries.length - 1] : null;
+  if(!last) return;
+  SCALES.forEach(s => {
+    if(typeof last[s.key] === 'number') selectScale(s.key, last[s.key]);
+  });
+  if(typeof last.schlaf === 'number') setSchlaf(last.schlaf);
+  showStatus('Übernommen – jetzt nur noch anpassen, was heute anders ist.', true);
+});
+
+/* ============================================================
+   3) SCHLAF-STEPPER
+   ============================================================ */
+let schlafVal = 7;
+function setSchlaf(v){
+  schlafVal = Math.min(14, Math.max(0, Math.round(v * 2) / 2));
+  document.getElementById('schlaf-val').textContent = String(schlafVal).replace('.', ',') + ' h';
+}
+document.getElementById('schlaf-minus').addEventListener('click', () => setSchlaf(schlafVal - 0.5));
+document.getElementById('schlaf-plus').addEventListener('click', () => setSchlaf(schlafVal + 0.5));
+
+/* ============================================================
+   4) CHIPS: KONTAKT + GEWOHNHEITEN
+   ============================================================ */
+const kontaktSelected = new Set();
+document.querySelectorAll('#kontakt-chips .chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    const val = chip.dataset.val;
+    if(kontaktSelected.has(val)){ kontaktSelected.delete(val); chip.classList.remove('active'); }
+    else { kontaktSelected.add(val); chip.classList.add('active'); }
+  });
+});
+
+const habits = { alkohol:false, sport:false };
+document.querySelectorAll('#habit-chips .chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    const k = chip.dataset.key;
+    habits[k] = !habits[k];
+    chip.classList.toggle('active', habits[k]);
+  });
+});
+
+/* ============================================================
+   5) TABS + UHRZEIT
+   ============================================================ */
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
+    document.getElementById('tab-' + btn.dataset.tab).style.display = 'block';
+    if(btn.dataset.tab === 'history') renderHistory();
+    if(btn.dataset.tab === 'analysis') renderAnalysis();
+  });
+});
+
+function updateNowDisplay(){
+  const now = new Date();
+  document.getElementById('now-display').textContent =
+    'Wird gespeichert mit: ' + now.toLocaleDateString('de-DE') + ', ' +
+    now.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
+}
+updateNowDisplay();
+setInterval(updateNowDisplay, 30000);
+
+/* ============================================================
+   6) SPEICHERN (mit Validierung)
+   ============================================================ */
+function showStatus(msg, ok){
+  const el = document.getElementById('status-msg');
+  el.textContent = msg;
+  el.className = ok ? 'ok' : 'err';
+}
+
+document.getElementById('save-btn').addEventListener('click', async () => {
+  if(!db || !currentUid){
+    showStatus('Noch nicht mit Firebase verbunden.', false);
+    return;
+  }
+
+  // Validierung: alle Skalen müssen bewusst angetippt sein
+  const missing = SCALES.filter(s => scaleValues[s.key] === null);
+  SCALES.forEach(s => document.getElementById('scale-' + s.key).classList.remove('missing'));
+  if(missing.length){
+    missing.forEach(s => document.getElementById('scale-' + s.key).classList.add('missing'));
+    showStatus('Bitte noch die rot markierten Skalen antippen (' + missing.length + ' fehlen).', false);
+    document.getElementById('scale-' + missing[0].key).scrollIntoView({behavior:'smooth', block:'center'});
+    return;
+  }
+
+  const now = new Date();
+  const entry = {
+    uid: currentUid,
+    timestamp: firebase.firestore.Timestamp.fromDate(now),
+    dateStr: now.toLocaleDateString('de-DE'),
+    timeStr: now.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'}),
+    weekday: now.getDay(),
+    verliebtheit: scaleValues.verliebtheit,
+    vorfreude: scaleValues.vorfreude,
+    wohl: scaleValues.wohl,
+    unsicherheit: scaleValues.unsicherheit,
+    kontakt: Array.from(kontaktSelected),
+    stimmung: scaleValues.stimmung,
+    stress: scaleValues.stress,
+    energie: scaleValues.energie,
+    schlaf: schlafVal,
+    hunger: scaleValues.hunger,
+    verlangen: scaleValues.verlangen,
+    alkohol: habits.alkohol,
+    sport: habits.sport,
+    notizen: document.getElementById('v-notizen').value.trim()
+  };
+
+  const btn = document.getElementById('save-btn');
+  btn.disabled = true;
+  try{
+    await db.collection('entries').add(entry);
+    showStatus('Gespeichert ✓ – bis zum nächsten Check-in!', true);
+    resetForm();
+    loadEntries();
+  } catch(err){
+    showStatus('Fehler beim Speichern: ' + err.message, false);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+function resetForm(){
+  SCALES.forEach(s => clearScaleSelection(s.key));
+  habits.alkohol = false; habits.sport = false;
+  document.querySelectorAll('#habit-chips .chip').forEach(c => c.classList.remove('active'));
+  kontaktSelected.clear();
+  document.querySelectorAll('#kontakt-chips .chip').forEach(c => c.classList.remove('active'));
+  document.getElementById('v-notizen').value = '';
+  // Schlaf bleibt stehen – ähnelt sich meist von Tag zu Tag
+}
+
+/* ============================================================
+   7) LADEN  (ohne orderBy -> kein Firestore-Index nötig;
+      Sortierung passiert hier in der App)
+   ============================================================ */
+function tsMs(e){
+  return (e.timestamp && typeof e.timestamp.toMillis === 'function') ? e.timestamp.toMillis() : 0;
+}
+
+async function loadEntries(){
+  if(!db || !currentUid) return;
+  const errEl = document.getElementById('history-error');
+  errEl.textContent = '';
+  try{
+    const snap = await db.collection('entries')
+      .where('uid', '==', currentUid)
+      .get();
+    entries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    entries.sort((a, b) => tsMs(a) - tsMs(b));
+    document.getElementById('loaded-count').textContent =
+      entries.length + (entries.length === 1 ? ' Eintrag geladen' : ' Einträge geladen');
+    updatePrefillButton();
+    renderHistory();
+    renderAnalysis();
+  } catch(err){
+    errEl.textContent = 'Fehler beim Laden: ' + err.message;
+    console.error('Ladefehler', err);
+  }
+}
+
+/* ============================================================
+   8) VERLAUF: STATISTIK, CHART, TABELLE
+   ============================================================ */
+const METRICS = [
+  {key:'verliebtheit', label:'Verliebtheit',     color:'#45c1ff'},
+  {key:'vorfreude',    label:'Vorfreude',        color:'#ffd166'},
+  {key:'wohl',         label:'Wohlgefühl',       color:'#a78bfa'},
+  {key:'unsicherheit', label:'Unsicherheit',     color:'#ff8095'},
+  {key:'stimmung',     label:'Stimmung',         color:'#5fdd9d'},
+  {key:'stress',       label:'Stress',           color:'#ff9f43'},
+  {key:'energie',      label:'Energie',          color:'#a3e635'},
+  {key:'schlaf',       label:'Schlaf (h)',       color:'#5eead4'},
+  {key:'hunger',       label:'Hunger/Sättigung', color:'#e2a6ff'},
+  {key:'verlangen',    label:'Verlangen',        color:'#f472b6'},
+];
+let activeMetrics = new Set(['verliebtheit']);
+let chartInstance = null;
+
+function renderStats(){
+  const row = document.getElementById('stats-row');
+  const now = Date.now();
+  const d7 = now - 7*864e5, d14 = now - 14*864e5;
+  const last7 = entries.filter(e => tsMs(e) >= d7);
+  const prev7 = entries.filter(e => { const t = tsMs(e); return t >= d14 && t < d7; });
+  const avg = arr => arr.length ? arr.reduce((s,e) => s + e.verliebtheit, 0) / arr.length : null;
+  const a7 = avg(last7), ap = avg(prev7);
+
+  let trendHtml = '<div class="v"><small>zu wenig Daten</small></div>';
+  if(a7 !== null && ap !== null){
+    const diff = a7 - ap;
+    const cls = diff > 0.05 ? 'up' : (diff < -0.05 ? 'down' : '');
+    const arrow = diff > 0.05 ? '↑' : (diff < -0.05 ? '↓' : '→');
+    trendHtml = `<div class="v ${cls}">${arrow} ${diff >= 0 ? '+' : ''}${diff.toFixed(1)}</div>`;
+  }
+
+  row.innerHTML = `
+    <div class="stat"><div class="k">Ø Verliebtheit · 7 Tage</div>
+      <div class="v">${a7 !== null ? a7.toFixed(1) : '–'}</div></div>
+    <div class="stat"><div class="k">Trend vs. Vorwoche</div>${trendHtml}</div>
+    <div class="stat"><div class="k">Einträge gesamt</div>
+      <div class="v">${entries.length}</div></div>
+  `;
+}
+
+function buildMetricToggles(){
+  const wrap = document.getElementById('metric-toggles');
+  wrap.innerHTML = '';
+  METRICS.forEach(m => {
+    const chip = document.createElement('div');
+    chip.className = 'chip' + (activeMetrics.has(m.key) ? ' active' : '');
+    chip.textContent = m.label;
+    chip.style.borderColor = m.color;
+    if(activeMetrics.has(m.key)){ chip.style.background = m.color; chip.style.color = '#0a0e15'; }
+    chip.addEventListener('click', () => {
+      if(activeMetrics.has(m.key)) activeMetrics.delete(m.key); else activeMetrics.add(m.key);
+      buildMetricToggles();
+      drawChart();
+    });
+    wrap.appendChild(chip);
+  });
+}
+
+function renderHistory(){
+  renderStats();
+  buildMetricToggles();
+  const tbody = document.getElementById('history-tbody');
+  tbody.innerHTML = '';
+  document.getElementById('history-empty').style.display = entries.length ? 'none' : 'block';
+
+  [...entries].reverse().forEach(e => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${e.dateStr||''}</td><td>${e.timeStr||''}</td>
+      <td>${e.verliebtheit}</td><td>${e.vorfreude}</td><td>${e.wohl}</td>
+      <td>${e.unsicherheit}</td><td>${(e.kontakt||[]).join(', ')||'–'}</td>
+      <td>${e.stimmung}</td><td>${e.stress}</td><td>${e.energie}</td>
+      <td>${e.schlaf}h</td><td>${e.hunger}</td><td>${e.verlangen}</td>
+      <td><span class="row-del" data-id="${e.id}">löschen</span></td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  tbody.querySelectorAll('.row-del').forEach(el => {
+    el.addEventListener('click', async () => {
+      if(!confirm('Diesen Eintrag wirklich löschen?')) return;
+      await db.collection('entries').doc(el.dataset.id).delete();
+      loadEntries();
+    });
+  });
+
+  drawChart();
+}
+
+function drawChart(){
+  const ctx = document.getElementById('history-chart');
+  if(chartInstance) chartInstance.destroy();
+  const labels = entries.map(e => (e.dateStr||'') + ' ' + (e.timeStr||''));
+  const datasets = METRICS.filter(m => activeMetrics.has(m.key)).map(m => ({
+    label: m.label,
+    data: entries.map(e => e[m.key]),
+    borderColor: m.color,
+    backgroundColor: m.color,
+    tension: 0.3,
+    pointRadius: 3,
+  }));
+  chartInstance = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      scales: {
+        y: { min: 0, max: 12, ticks:{ color:'#9db0c7' }, grid:{ color:'#233045' } },
+        x: { ticks:{ color:'#9db0c7', maxRotation:60, minRotation:60 }, grid:{ color:'#233045' } }
+      },
+      plugins:{ legend:{ labels:{ color:'#f2f6fa' } } }
+    }
+  });
+}
+
+/* ============================================================
+   9) ANALYSE: KORRELATIONEN
+   ============================================================ */
+function pearson(xs, ys){
+  const n = xs.length;
+  if(n < 2) return null;
+  const mx = xs.reduce((a,b)=>a+b,0)/n;
+  const my = ys.reduce((a,b)=>a+b,0)/n;
+  let num=0, dx2=0, dy2=0;
+  for(let i=0;i<n;i++){
+    const dx = xs[i]-mx, dy = ys[i]-my;
+    num += dx*dy; dx2 += dx*dx; dy2 += dy*dy;
+  }
+  if(dx2===0 || dy2===0) return null;
+  return num / Math.sqrt(dx2*dy2);
+}
+
+function renderAnalysis(){
+  const out = document.getElementById('analysis-out');
+  out.innerHTML = '';
+  document.getElementById('analysis-empty').style.display = entries.length < 5 ? 'block' : 'none';
+  if(entries.length < 5) return;
+
+  const target = entries.map(e => e.verliebtheit);
+
+  METRICS.filter(m => m.key !== 'verliebtheit').forEach(m => {
+    const vals = entries.map(e => e[m.key]);
+    const r = pearson(target, vals);
+    if(r === null || Math.abs(r) < 0.2) return;
+    const richtung = r > 0 ? 'steigt' : 'sinkt';
+    const staerke = Math.abs(r) > 0.6 ? 'deutlich' : (Math.abs(r) > 0.4 ? 'spürbar' : 'leicht');
+    const div = document.createElement('div');
+    div.className = 'insight';
+    div.innerHTML = `Deine Verliebtheit <b>${richtung} ${staerke}</b> mit steigendem "<b>${m.label}</b>" (r = ${r.toFixed(2)}).`;
+    out.appendChild(div);
+  });
+
+  const mitTreffen = entries.filter(e => (e.kontakt||[]).includes('treffen')).map(e => e.verliebtheit);
+  const ohneTreffen = entries.filter(e => !(e.kontakt||[]).includes('treffen')).map(e => e.verliebtheit);
+  if(mitTreffen.length && ohneTreffen.length){
+    const avgA = mitTreffen.reduce((a,b)=>a+b,0)/mitTreffen.length;
+    const avgB = ohneTreffen.reduce((a,b)=>a+b,0)/ohneTreffen.length;
+    const diff = (avgA - avgB).toFixed(1);
+    const div = document.createElement('div');
+    div.className = 'insight';
+    div.innerHTML = `An Tagen mit <b>Treffen</b> ist deine Verliebtheit im Schnitt <b>${diff > 0 ? '+' : ''}${diff} Punkte</b> im Vergleich zu Tagen ohne Treffen (${avgA.toFixed(1)} vs. ${avgB.toFixed(1)}).`;
+    out.appendChild(div);
+  }
+
+  const keinKontakt = entries.filter(e => (e.kontakt||[]).includes('keiner') || (e.kontakt||[]).length===0).map(e => e.verliebtheit);
+  const mitKontakt = entries.filter(e => (e.kontakt||[]).length>0 && !(e.kontakt||[]).includes('keiner')).map(e => e.verliebtheit);
+  if(keinKontakt.length && mitKontakt.length){
+    const avgA = keinKontakt.reduce((a,b)=>a+b,0)/keinKontakt.length;
+    const avgB = mitKontakt.reduce((a,b)=>a+b,0)/mitKontakt.length;
+    const diff = (avgB - avgA).toFixed(1);
+    const div = document.createElement('div');
+    div.className = 'insight';
+    div.innerHTML = `An Tagen <b>ohne jeglichen Kontakt</b> liegt deine Verliebtheit im Schnitt bei ${avgA.toFixed(1)}, an Tagen mit Kontakt bei ${avgB.toFixed(1)} (Unterschied: ${diff > 0 ? '+' : ''}${diff}).`;
+    out.appendChild(div);
+  }
+
+  if(out.children.length === 0){
+    const div = document.createElement('div');
+    div.className = 'insight';
+    div.innerHTML = 'Bisher keine auffälligen Zusammenhänge erkennbar – sammle weiter Daten.';
+    out.appendChild(div);
+  }
+}
+
+/* ============================================================
+   START
+   ============================================================ */
+buildScales();
+setSchlaf(7);
+initFirebase();
+</script>
+
+</body>
+</html>
