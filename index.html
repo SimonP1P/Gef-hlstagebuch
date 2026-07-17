@@ -224,7 +224,10 @@
     <div class="field">
       <input type="password" id="login-pw" placeholder="Passwort (mind. 6 Zeichen)" autocomplete="current-password" style="width:100%;background:var(--panel-soft);border:1px solid var(--line);color:var(--cream);border-radius:8px;padding:11px 12px;font-family:'Inter';font-size:16px;">
     </div>
-    <button class="primary" id="login-btn">Anmelden</button>
+    <div style="display:flex;gap:10px;">
+      <button class="primary" id="login-btn" style="flex:1;">Anmelden</button>
+      <button class="ghost" id="register-btn" style="flex:1;">Erstes Mal? Konto anlegen</button>
+    </div>
     <div id="login-status" style="font-size:13px;margin-top:10px;"></div>
   </div>
 
@@ -503,53 +506,77 @@ function initFirebase(){
 
 /* Login/Registrierung in einem: existiert das Konto schon, wird eingeloggt,
    sonst automatisch angelegt. So merkt sich der Nutzer nur ein Passwort. */
-document.getElementById('login-btn').addEventListener('click', async () => {
-  const email = document.getElementById('login-email').value.trim();
-  const pw = document.getElementById('login-pw').value;
-  const statusEl = document.getElementById('login-status');
-  const btn = document.getElementById('login-btn');
+function getLoginFields(){
+  return {
+    email: document.getElementById('login-email').value.trim(),
+    pw: document.getElementById('login-pw').value,
+    statusEl: document.getElementById('login-status')
+  };
+}
 
+function runWithTimeout(promiseFn, buttons, statusEl){
+  buttons.forEach(b => b.disabled = true);
+  const stuckTimer = setTimeout(() => {
+    statusEl.textContent = '⚠️ Das dauert ungewöhnlich lange – vermutlich blockiert dein Netzwerk/WLAN oder ein Adblocker die Verbindung zu Google/Firebase. Versuch mobile Daten statt WLAN, oder Adblocker kurz deaktivieren.';
+    statusEl.style.color = 'var(--danger)';
+    buttons.forEach(b => b.disabled = false);
+  }, 10000);
+  return promiseFn().then(res => { clearTimeout(stuckTimer); return res; })
+    .catch(err => { clearTimeout(stuckTimer); throw err; })
+    .finally(() => buttons.forEach(b => b.disabled = false));
+}
+
+document.getElementById('register-btn').addEventListener('click', async () => {
+  const { email, pw, statusEl } = getLoginFields();
+  const buttons = [document.getElementById('login-btn'), document.getElementById('register-btn')];
   if(!email || pw.length < 6){
     statusEl.textContent = 'Bitte E-Mail und ein Passwort mit mind. 6 Zeichen eingeben.';
     statusEl.style.color = 'var(--danger)';
     return;
   }
   if(!auth){
-    statusEl.textContent = 'Firebase ist noch nicht bereit – warte kurz und versuch es erneut, oder lade die Seite neu.';
+    statusEl.textContent = 'Firebase ist noch nicht bereit – kurz warten und nochmal versuchen.';
     statusEl.style.color = 'var(--danger)';
     return;
   }
+  statusEl.textContent = 'Konto wird angelegt …';
+  statusEl.style.color = 'var(--cream-dim)';
+  try{
+    await runWithTimeout(() => auth.createUserWithEmailAndPassword(email, pw), buttons, statusEl);
+  } catch(err){
+    if(err.code === 'auth/email-already-in-use'){
+      statusEl.textContent = 'Dieses Konto gibt es schon – nutz stattdessen „Anmelden“.';
+    } else {
+      statusEl.textContent = 'Fehler: ' + err.message;
+    }
+    statusEl.style.color = 'var(--danger)';
+  }
+});
 
-  btn.disabled = true;
+document.getElementById('login-btn').addEventListener('click', async () => {
+  const { email, pw, statusEl } = getLoginFields();
+  const buttons = [document.getElementById('login-btn'), document.getElementById('register-btn')];
+  if(!email || pw.length < 6){
+    statusEl.textContent = 'Bitte E-Mail und ein Passwort mit mind. 6 Zeichen eingeben.';
+    statusEl.style.color = 'var(--danger)';
+    return;
+  }
+  if(!auth){
+    statusEl.textContent = 'Firebase ist noch nicht bereit – kurz warten und nochmal versuchen.';
+    statusEl.style.color = 'var(--danger)';
+    return;
+  }
   statusEl.textContent = 'Einen Moment …';
   statusEl.style.color = 'var(--cream-dim)';
-
-  const stuckTimer = setTimeout(() => {
-    statusEl.textContent = '⚠️ Das dauert ungewöhnlich lange – vermutlich blockiert dein Netzwerk/WLAN oder ein Adblocker die Verbindung zu Google/Firebase. Versuch mobile Daten statt WLAN, oder Adblocker kurz deaktivieren.';
-    statusEl.style.color = 'var(--danger)';
-    btn.disabled = false;
-  }, 10000);
-
   try{
-    await auth.signInWithEmailAndPassword(email, pw);
-    clearTimeout(stuckTimer);
+    await runWithTimeout(() => auth.signInWithEmailAndPassword(email, pw), buttons, statusEl);
   } catch(err){
-    if(err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential'){
-      try{
-        await auth.createUserWithEmailAndPassword(email, pw);
-        clearTimeout(stuckTimer);
-      } catch(err2){
-        clearTimeout(stuckTimer);
-        statusEl.textContent = 'Fehler: ' + err2.message;
-        statusEl.style.color = 'var(--danger)';
-        btn.disabled = false;
-      }
+    if(['auth/wrong-password','auth/user-not-found','auth/invalid-credential'].includes(err.code)){
+      statusEl.textContent = 'E-Mail oder Passwort falsch – oder du hast noch kein Konto. Beim ersten Mal „Erstes Mal? Konto anlegen“ nutzen.';
     } else {
-      clearTimeout(stuckTimer);
       statusEl.textContent = 'Fehler: ' + err.message;
-      statusEl.style.color = 'var(--danger)';
-      btn.disabled = false;
     }
+    statusEl.style.color = 'var(--danger)';
   }
 });
 
