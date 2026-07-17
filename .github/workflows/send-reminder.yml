@@ -1,0 +1,26 @@
+name: Erinnerung senden
+
+on:
+  schedule:
+    # alle 3 Stunden – Uhrzeit in UTC, Cron-Syntax
+    - cron: '0 */3 * * *'
+  workflow_dispatch: {}   # erlaubt manuelles Auslösen zum Testen
+
+jobs:
+  reminder:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Abhängigkeiten installieren
+        run: npm install firebase-admin
+
+      - name: Reminder-Skript ausführen
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          SITE_URL: ${{ secrets.SITE_URL }}
+        run: node scripts/send-reminder.js
