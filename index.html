@@ -259,10 +259,10 @@
         <div class="hint" style="margin:14px 0 8px;">Wie lange ist das her?</div>
         <div class="chip-row" id="kontaktwann-chips">
           <div class="chip" data-val="jetzt">Gerade eben</div>
+          <div class="chip" data-val="1h">Eine Stunde</div>
+          <div class="chip" data-val="4h">4 Stunden</div>
           <div class="chip" data-val="heute">Heute früher</div>
           <div class="chip" data-val="gestern">Gestern</div>
-          <div class="chip" data-val="tage">2–3 Tage</div>
-          <div class="chip" data-val="laenger">Länger her</div>
         </div>
       </div>
 
@@ -961,7 +961,7 @@ let activeMetrics = new Set(['verliebtheit']);
 let chartInstance = null;
 
 const KONTAKTART_LABEL = { kein:'Kein Kontakt', chat:'Chat', snapchat:'Snapchat', instagram:'Instagram', telefon:'Telefon', treffen:'Treffen' };
-const KONTAKTWANN_LABEL = { jetzt:'gerade eben', heute:'heute früher', gestern:'gestern', tage:'2–3 Tage her', laenger:'länger her' };
+const KONTAKTWANN_LABEL = { jetzt:'gerade eben', '1h':'vor einer Stunde', '4h':'vor 4 Stunden', heute:'heute früher', gestern:'gestern' };
 function kontaktText(e){
   const k = e.kontakt;
   if(!k || !k.art) return '–';
@@ -1180,7 +1180,7 @@ function renderAnalysis(){
     out.appendChild(div);
   }
 
-  const RECENCY = { jetzt:1, heute:2, gestern:3, tage:4, laenger:5 };
+  const RECENCY = { jetzt:1, '1h':2, '4h':3, heute:4, gestern:5 };
   const recPairs = entries.filter(e => e.kontakt && e.kontakt.wann && RECENCY[e.kontakt.wann]);
   if(recPairs.length >= 5){
     const r = pearson(recPairs.map(e => RECENCY[e.kontakt.wann]), recPairs.map(e => e.verliebtheit));
