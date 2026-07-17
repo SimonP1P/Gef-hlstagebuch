@@ -211,6 +211,10 @@
   </div>
 
   <!-- ===================== LOGIN ===================== -->
+  <div id="loading-state" class="card" style="text-align:center;">
+    <p class="sub" style="margin:0;" id="loading-text">Verbinde mit deinem Journal …</p>
+  </div>
+
   <div id="login-card" class="card" style="display:none;">
     <h2>Anmelden</h2>
     <p class="sub">Ein einmaliges privates Login sorgt dafür, dass du deine Einträge in Safari, als Homescreen-App und auf anderen Geräten immer gleich wiedersiehst. Muss keine echte E-Mail sein – merk sie dir einfach.</p>
@@ -244,6 +248,8 @@
         <div class="chip-row" id="kontaktart-chips">
           <div class="chip" data-val="kein">Kein Kontakt</div>
           <div class="chip" data-val="chat">Chat</div>
+          <div class="chip" data-val="snapchat">Snapchat</div>
+          <div class="chip" data-val="instagram">Instagram</div>
           <div class="chip" data-val="telefon">Telefon</div>
           <div class="chip" data-val="treffen">Treffen</div>
         </div>
@@ -275,10 +281,8 @@
 
       <div class="field">
         <span class="scale-label">Heute außerdem</span>
-        <div class="chip-row" id="habit-chips">
-          <div class="chip" data-key="alkohol">🍷 Alkohol</div>
-          <div class="chip" data-key="sport">🏃 Sport</div>
-        </div>
+        <p class="hint" style="margin-top:0;margin-bottom:12px;">Mehrfachauswahl – nur das antippen, was heute wirklich zutrifft.</p>
+        <div class="chip-row" id="habit-chips"></div>
       </div>
 
       <div class="sect-title">✎ Notiz</div>
@@ -312,7 +316,7 @@
             <tr>
               <th>Datum</th><th>Zeit</th><th>Verl.</th><th>Vorfr.</th><th>Wohl</th>
               <th>Unsich.</th><th>Kontakt</th><th>Stimm.</th><th>Stress</th><th>Energie</th>
-              <th>Schlaf</th><th>Hunger</th><th>Verl.(k)</th><th></th>
+              <th>Schlaf</th><th>Hunger</th><th>Verl.(k)</th><th>Trigger</th><th></th>
             </tr>
           </thead>
           <tbody id="history-tbody"></tbody>
@@ -443,28 +447,49 @@ function isConfigured(){
 
 function initFirebase(){
   if(!isConfigured()){
+    document.getElementById('loading-state').style.display = 'none';
     document.getElementById('config-warning').style.display = 'block';
     document.getElementById('save-btn').disabled = true;
     return;
   }
-  firebase.initializeApp(firebaseConfig);
-  db = firebase.firestore();
-  auth = firebase.auth();
 
-  auth.onAuthStateChanged(user => {
-    if(user){
-      currentUid = user.uid;
-      document.getElementById('login-card').style.display = 'none';
-      document.getElementById('app-content').style.display = 'block';
-      document.getElementById('main-nav').style.display = 'flex';
-      loadEntries();
-    } else {
-      currentUid = null;
-      document.getElementById('login-card').style.display = 'block';
-      document.getElementById('app-content').style.display = 'none';
-      document.getElementById('main-nav').style.display = 'none';
-    }
-  });
+  // Falls Firebase nach 10s noch nichts gemeldet hat (z.B. schwaches Netz),
+  // zeigen wir eine klare Fehlermeldung statt einer leeren Seite.
+  const stuckTimer = setTimeout(() => {
+    document.getElementById('loading-text').textContent =
+      '⚠️ Verbindung dauert ungewöhnlich lange. Prüf dein Internet (WLAN/Mobilfunk) und lade die Seite neu.';
+  }, 10000);
+
+  try{
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    auth = firebase.auth();
+
+    auth.onAuthStateChanged(user => {
+      clearTimeout(stuckTimer);
+      document.getElementById('loading-state').style.display = 'none';
+      if(user){
+        currentUid = user.uid;
+        document.getElementById('login-card').style.display = 'none';
+        document.getElementById('app-content').style.display = 'block';
+        document.getElementById('main-nav').style.display = 'flex';
+        loadEntries();
+      } else {
+        currentUid = null;
+        document.getElementById('login-card').style.display = 'block';
+        document.getElementById('app-content').style.display = 'none';
+        document.getElementById('main-nav').style.display = 'none';
+      }
+    }, err => {
+      clearTimeout(stuckTimer);
+      document.getElementById('loading-text').textContent =
+        '⚠️ Verbindungsfehler: ' + err.message + ' — bitte neu laden.';
+    });
+  } catch(err){
+    clearTimeout(stuckTimer);
+    document.getElementById('loading-text').textContent =
+      '⚠️ Firebase konnte nicht gestartet werden: ' + err.message;
+  }
 }
 
 /* Login/Registrierung in einem: existiert das Konto schon, wird eingeloggt,
@@ -614,14 +639,38 @@ document.querySelectorAll('#kontaktwann-chips .chip').forEach(chip => {
   });
 });
 
-const habits = { alkohol:false, sport:false };
-document.querySelectorAll('#habit-chips .chip').forEach(chip => {
-  chip.addEventListener('click', () => {
-    const k = chip.dataset.key;
-    habits[k] = !habits[k];
-    chip.classList.toggle('active', habits[k]);
+const HABITS = [
+  {key:'alkohol',      label:'🍷 Alkohol'},
+  {key:'sport',        label:'🏃 Sport'},
+  {key:'porno',        label:'🔞 Pornokonsum'},
+  {key:'andereFrauen', label:'👀 Andere Frauen leicht bekleidet gesehen'},
+  {key:'masturbiert',  label:'✋ Masturbiert'},
+  {key:'socialMedia',  label:'📱 Social Media viel gescrollt'},
+  {key:'streit',       label:'⚡ Streit mit ihr gehabt'},
+  {key:'kompliment',   label:'✨ Kompliment bekommen'},
+  {key:'freunde',      label:'👥 Mit Freunden abgehangen'},
+  {key:'einsamkeit',   label:'🌙 Einsamkeit gespürt'},
+  {key:'erfolg',       label:'🏆 Erfolgserlebnis gehabt'},
+];
+const habits = {};
+HABITS.forEach(h => habits[h.key] = false);
+
+function buildHabitChips(){
+  const wrap = document.getElementById('habit-chips');
+  wrap.innerHTML = '';
+  HABITS.forEach(h => {
+    const chip = document.createElement('div');
+    chip.className = 'chip' + (habits[h.key] ? ' active' : '');
+    chip.dataset.key = h.key;
+    chip.textContent = h.label;
+    chip.addEventListener('click', () => {
+      habits[h.key] = !habits[h.key];
+      chip.classList.toggle('active', habits[h.key]);
+    });
+    wrap.appendChild(chip);
   });
-});
+}
+buildHabitChips();
 
 /* ============================================================
    5) TABS + UHRZEIT
@@ -691,6 +740,15 @@ document.getElementById('save-btn').addEventListener('click', async () => {
     verlangen: scaleValues.verlangen,
     alkohol: habits.alkohol,
     sport: habits.sport,
+    porno: habits.porno,
+    andereFrauen: habits.andereFrauen,
+    masturbiert: habits.masturbiert,
+    socialMedia: habits.socialMedia,
+    streit: habits.streit,
+    kompliment: habits.kompliment,
+    freunde: habits.freunde,
+    einsamkeit: habits.einsamkeit,
+    erfolg: habits.erfolg,
     notizen: document.getElementById('v-notizen').value.trim()
   };
 
@@ -710,7 +768,7 @@ document.getElementById('save-btn').addEventListener('click', async () => {
 
 function resetForm(){
   SCALES.forEach(s => clearScaleSelection(s.key));
-  habits.alkohol = false; habits.sport = false;
+  HABITS.forEach(h => habits[h.key] = false);
   document.querySelectorAll('#habit-chips .chip').forEach(c => c.classList.remove('active'));
   kontaktArt = null;
   kontaktWann = null;
@@ -770,7 +828,7 @@ const METRICS = [
 let activeMetrics = new Set(['verliebtheit']);
 let chartInstance = null;
 
-const KONTAKTART_LABEL = { kein:'Kein Kontakt', chat:'Chat', telefon:'Telefon', treffen:'Treffen' };
+const KONTAKTART_LABEL = { kein:'Kein Kontakt', chat:'Chat', snapchat:'Snapchat', instagram:'Instagram', telefon:'Telefon', treffen:'Treffen' };
 const KONTAKTWANN_LABEL = { jetzt:'gerade eben', heute:'heute früher', gestern:'gestern', tage:'2–3 Tage her', laenger:'länger her' };
 function kontaktText(e){
   const k = e.kontakt;
@@ -839,6 +897,7 @@ function renderHistory(){
       <td>${e.unsicherheit}</td><td>${kontaktText(e)}</td>
       <td>${e.stimmung}</td><td>${e.stress}</td><td>${e.energie}</td>
       <td>${e.schlaf}h</td><td>${e.hunger}</td><td>${e.verlangen}</td>
+      <td>${HABITS.filter(h => e[h.key] === true).map(h => h.label.split(' ')[0]).join(' ') || '–'}</td>
       <td><span class="row-del" data-id="${e.id}">löschen</span></td>
     `;
     tbody.appendChild(tr);
@@ -956,6 +1015,21 @@ function renderAnalysis(){
       out.appendChild(div);
     }
   }
+
+  HABITS.forEach(h => {
+    const mit = entries.filter(e => e[h.key] === true).map(e => e.verliebtheit);
+    const ohne = entries.filter(e => e[h.key] !== true).map(e => e.verliebtheit);
+    if(mit.length < 2 || ohne.length < 2) return;
+    const avgMit = mit.reduce((a,b)=>a+b,0)/mit.length;
+    const avgOhne = ohne.reduce((a,b)=>a+b,0)/ohne.length;
+    const diff = avgMit - avgOhne;
+    if(Math.abs(diff) < 0.5) return;
+    const div = document.createElement('div');
+    div.className = 'insight';
+    const richtung = diff > 0 ? 'höher' : 'niedriger';
+    div.innerHTML = `An Einträgen mit „<b>${h.label.replace(/^\S+\s/, '')}</b>“ ist deine Verliebtheit im Schnitt <b>${richtung}</b> (${avgMit.toFixed(1)} vs. ${avgOhne.toFixed(1)}, Unterschied: ${diff > 0 ? '+' : ''}${diff.toFixed(1)}).`;
+    out.appendChild(div);
+  });
 
   if(out.children.length === 0){
     const div = document.createElement('div');
