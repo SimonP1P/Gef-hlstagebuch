@@ -283,6 +283,11 @@
         <span class="scale-label">Heute außerdem</span>
         <p class="hint" style="margin-top:0;margin-bottom:12px;">Mehrfachauswahl – nur das antippen, was heute wirklich zutrifft.</p>
         <div class="chip-row" id="habit-chips"></div>
+        <button type="button" class="ghost" id="add-trigger-btn" style="margin-top:12px;">+ Eigenen Trigger hinzufügen</button>
+        <div id="add-trigger-row" style="display:none;margin-top:10px;gap:8px;">
+          <input type="text" id="new-trigger-text" placeholder="z. B. „Sie hat sich nicht gemeldet“" style="width:100%;background:var(--panel-soft);border:1px solid var(--line);color:var(--cream);border-radius:8px;padding:11px 12px;font-family:'Inter';font-size:16px;margin-bottom:8px;">
+          <button type="button" class="primary" id="confirm-trigger-btn" style="margin-top:0;">Hinzufügen</button>
+        </div>
       </div>
 
       <div class="sect-title">✎ Notiz</div>
@@ -372,6 +377,10 @@ const firebaseConfig = {
            && request.auth.uid == request.resource.data.uid;
        }
        match /fcmTokens/{tokenId} {
+         allow read, write: if request.auth != null
+           && request.auth.uid == tokenId;
+       }
+       match /customTriggers/{tokenId} {
          allow read, write: if request.auth != null
            && request.auth.uid == tokenId;
        }
@@ -474,7 +483,7 @@ function initFirebase(){
         document.getElementById('app-content').style.display = 'block';
         document.getElementById('main-nav').style.display = 'flex';
         loadEntries();
-      } else {
+        loadCustomTriggers();
         currentUid = null;
         document.getElementById('login-card').style.display = 'block';
         document.getElementById('app-content').style.display = 'none';
@@ -651,9 +660,15 @@ const HABITS = [
   {key:'freunde',      label:'👥 Mit Freunden abgehangen'},
   {key:'einsamkeit',   label:'🌙 Einsamkeit gespürt'},
   {key:'erfolg',       label:'🏆 Erfolgserlebnis gehabt'},
+  {key:'verglichen',   label:'⚖️ Viel verglichen'},
+  {key:'jemandBesseres', label:'💭 Gedanke: jemand Besseres finden'},
+  {key:'unerwartet',   label:'❓ Ihr Verhalten war unerwartet'},
 ];
 const habits = {};
 HABITS.forEach(h => habits[h.key] = false);
+
+let customTriggers = [];             // Namen, die der Nutzer selbst angelegt hat
+let customTriggerActive = new Set(); // aktuell im Formular ausgewählte eigene Trigger
 
 function buildHabitChips(){
   const wrap = document.getElementById('habit-chips');
@@ -669,8 +684,61 @@ function buildHabitChips(){
     });
     wrap.appendChild(chip);
   });
+  customTriggers.forEach(name => {
+    const chip = document.createElement('div');
+    chip.className = 'chip' + (customTriggerActive.has(name) ? ' active' : '');
+    chip.textContent = '✏️ ' + name;
+    chip.addEventListener('click', () => {
+      if(customTriggerActive.has(name)){ customTriggerActive.delete(name); chip.classList.remove('active'); }
+      else { customTriggerActive.add(name); chip.classList.add('active'); }
+    });
+    wrap.appendChild(chip);
+  });
 }
 buildHabitChips();
+
+/* Eigene Trigger anlegen (persistent in Firestore, pro Account) */
+document.getElementById('add-trigger-btn').addEventListener('click', () => {
+  const row = document.getElementById('add-trigger-row');
+  row.style.display = row.style.display === 'none' ? 'block' : 'none';
+  if(row.style.display === 'block') document.getElementById('new-trigger-text').focus();
+});
+
+document.getElementById('confirm-trigger-btn').addEventListener('click', async () => {
+  const input = document.getElementById('new-trigger-text');
+  const name = input.value.trim();
+  if(!name) return;
+  const exists = customTriggers.some(n => n.toLowerCase() === name.toLowerCase());
+  if(exists){
+    input.value = '';
+    document.getElementById('add-trigger-row').style.display = 'none';
+    return;
+  }
+  customTriggers.push(name);
+  customTriggerActive.add(name);
+  buildHabitChips();
+  input.value = '';
+  document.getElementById('add-trigger-row').style.display = 'none';
+
+  if(db && currentUid){
+    try{
+      await db.collection('customTriggers').doc(currentUid).set({ names: customTriggers });
+    } catch(err){
+      console.error('Trigger konnte nicht gespeichert werden', err);
+    }
+  }
+});
+
+async function loadCustomTriggers(){
+  if(!db || !currentUid) return;
+  try{
+    const doc = await db.collection('customTriggers').doc(currentUid).get();
+    customTriggers = (doc.exists && Array.isArray(doc.data().names)) ? doc.data().names : [];
+    buildHabitChips();
+  } catch(err){
+    console.error('Eigene Trigger konnten nicht geladen werden', err);
+  }
+}
 
 /* ============================================================
    5) TABS + UHRZEIT
@@ -749,6 +817,10 @@ document.getElementById('save-btn').addEventListener('click', async () => {
     freunde: habits.freunde,
     einsamkeit: habits.einsamkeit,
     erfolg: habits.erfolg,
+    verglichen: habits.verglichen,
+    jemandBesseres: habits.jemandBesseres,
+    unerwartet: habits.unerwartet,
+    customTriggers: Array.from(customTriggerActive),
     notizen: document.getElementById('v-notizen').value.trim()
   };
 
@@ -769,7 +841,8 @@ document.getElementById('save-btn').addEventListener('click', async () => {
 function resetForm(){
   SCALES.forEach(s => clearScaleSelection(s.key));
   HABITS.forEach(h => habits[h.key] = false);
-  document.querySelectorAll('#habit-chips .chip').forEach(c => c.classList.remove('active'));
+  customTriggerActive.clear();
+  buildHabitChips();
   kontaktArt = null;
   kontaktWann = null;
   document.querySelectorAll('#kontaktart-chips .chip, #kontaktwann-chips .chip').forEach(c => c.classList.remove('active'));
@@ -897,7 +970,10 @@ function renderHistory(){
       <td>${e.unsicherheit}</td><td>${kontaktText(e)}</td>
       <td>${e.stimmung}</td><td>${e.stress}</td><td>${e.energie}</td>
       <td>${e.schlaf}h</td><td>${e.hunger}</td><td>${e.verlangen}</td>
-      <td>${HABITS.filter(h => e[h.key] === true).map(h => h.label.split(' ')[0]).join(' ') || '–'}</td>
+      <td>${[
+        ...HABITS.filter(h => e[h.key] === true).map(h => h.label.split(' ')[0]),
+        ...(Array.isArray(e.customTriggers) ? e.customTriggers.map(n => '✏️' + n) : [])
+      ].join(' ') || '–'}</td>
       <td><span class="row-del" data-id="${e.id}">löschen</span></td>
     `;
     tbody.appendChild(tr);
@@ -1028,6 +1104,21 @@ function renderAnalysis(){
     div.className = 'insight';
     const richtung = diff > 0 ? 'höher' : 'niedriger';
     div.innerHTML = `An Einträgen mit „<b>${h.label.replace(/^\S+\s/, '')}</b>“ ist deine Verliebtheit im Schnitt <b>${richtung}</b> (${avgMit.toFixed(1)} vs. ${avgOhne.toFixed(1)}, Unterschied: ${diff > 0 ? '+' : ''}${diff.toFixed(1)}).`;
+    out.appendChild(div);
+  });
+
+  customTriggers.forEach(name => {
+    const mit = entries.filter(e => Array.isArray(e.customTriggers) && e.customTriggers.includes(name)).map(e => e.verliebtheit);
+    const ohne = entries.filter(e => !(Array.isArray(e.customTriggers) && e.customTriggers.includes(name))).map(e => e.verliebtheit);
+    if(mit.length < 2 || ohne.length < 2) return;
+    const avgMit = mit.reduce((a,b)=>a+b,0)/mit.length;
+    const avgOhne = ohne.reduce((a,b)=>a+b,0)/ohne.length;
+    const diff = avgMit - avgOhne;
+    if(Math.abs(diff) < 0.5) return;
+    const div = document.createElement('div');
+    div.className = 'insight';
+    const richtung = diff > 0 ? 'höher' : 'niedriger';
+    div.innerHTML = `An Einträgen mit deinem eigenen Trigger „<b>${name}</b>“ ist deine Verliebtheit im Schnitt <b>${richtung}</b> (${avgMit.toFixed(1)} vs. ${avgOhne.toFixed(1)}, Unterschied: ${diff > 0 ? '+' : ''}${diff.toFixed(1)}).`;
     out.appendChild(div);
   });
 
