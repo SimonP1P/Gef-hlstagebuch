@@ -198,7 +198,7 @@
   <div id="notif-status" style="font-size:12px;color:var(--cream-dim);margin-top:8px;"></div>
 </header>
 
-<nav>
+<nav id="main-nav" style="display:none;">
   <button class="tab-btn active" data-tab="entry">Eintrag</button>
   <button class="tab-btn" data-tab="history">Verlauf</button>
   <button class="tab-btn" data-tab="analysis">Analyse</button>
@@ -209,6 +209,22 @@
   <div id="config-warning" class="config-warning" style="display:none;">
     ⚠️ Firebase ist noch nicht konfiguriert. Trage deine Projektdaten im Script-Bereich unter <code>firebaseConfig</code> ein und lade die Seite neu.
   </div>
+
+  <!-- ===================== LOGIN ===================== -->
+  <div id="login-card" class="card" style="display:none;">
+    <h2>Anmelden</h2>
+    <p class="sub">Ein einmaliges privates Login sorgt dafür, dass du deine Einträge in Safari, als Homescreen-App und auf anderen Geräten immer gleich wiedersiehst. Muss keine echte E-Mail sein – merk sie dir einfach.</p>
+    <div class="field">
+      <input type="email" id="login-email" placeholder="z. B. deinname@beispiel.de" autocomplete="username" style="width:100%;background:var(--panel-soft);border:1px solid var(--line);color:var(--cream);border-radius:8px;padding:11px 12px;font-family:'Inter';font-size:16px;">
+    </div>
+    <div class="field">
+      <input type="password" id="login-pw" placeholder="Passwort (mind. 6 Zeichen)" autocomplete="current-password" style="width:100%;background:var(--panel-soft);border:1px solid var(--line);color:var(--cream);border-radius:8px;padding:11px 12px;font-family:'Inter';font-size:16px;">
+    </div>
+    <button class="primary" id="login-btn">Anmelden</button>
+    <div id="login-status" style="font-size:13px;margin-top:10px;"></div>
+  </div>
+
+  <div id="app-content" style="display:none;">
 
   <!-- ===================== TAB: EINTRAG ===================== -->
   <section id="tab-entry" class="tab-panel">
@@ -315,6 +331,8 @@
       <p class="empty" id="analysis-empty" style="display:none;">Trage mindestens 5 Einträge ein, damit Korrelationen sinnvoll werden.</p>
     </div>
   </section>
+
+  </div><!-- /app-content -->
 
 </main>
 
@@ -436,14 +454,48 @@ function initFirebase(){
   auth.onAuthStateChanged(user => {
     if(user){
       currentUid = user.uid;
+      document.getElementById('login-card').style.display = 'none';
+      document.getElementById('app-content').style.display = 'block';
+      document.getElementById('main-nav').style.display = 'flex';
       loadEntries();
     } else {
-      auth.signInAnonymously().catch(err => {
-        showStatus('Anmeldung fehlgeschlagen: ' + err.message, false);
-      });
+      currentUid = null;
+      document.getElementById('login-card').style.display = 'block';
+      document.getElementById('app-content').style.display = 'none';
+      document.getElementById('main-nav').style.display = 'none';
     }
   });
 }
+
+/* Login/Registrierung in einem: existiert das Konto schon, wird eingeloggt,
+   sonst automatisch angelegt. So merkt sich der Nutzer nur ein Passwort. */
+document.getElementById('login-btn').addEventListener('click', async () => {
+  const email = document.getElementById('login-email').value.trim();
+  const pw = document.getElementById('login-pw').value;
+  const statusEl = document.getElementById('login-status');
+  if(!email || pw.length < 6){
+    statusEl.textContent = 'Bitte E-Mail und ein Passwort mit mind. 6 Zeichen eingeben.';
+    statusEl.style.color = 'var(--danger)';
+    return;
+  }
+  statusEl.textContent = 'Einen Moment …';
+  statusEl.style.color = 'var(--cream-dim)';
+  try{
+    await auth.signInWithEmailAndPassword(email, pw);
+  } catch(err){
+    if(err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential'){
+      try{
+        await auth.createUserWithEmailAndPassword(email, pw);
+      } catch(err2){
+        statusEl.textContent = 'Fehler: ' + err2.message;
+        statusEl.style.color = 'var(--danger)';
+      }
+    } else {
+      statusEl.textContent = 'Fehler: ' + err.message;
+      statusEl.style.color = 'var(--danger)';
+    }
+  }
+});
 
 /* ============================================================
    2) SKALEN-DEFINITION (1–10 Tap-Buttons mit Wortankern)
