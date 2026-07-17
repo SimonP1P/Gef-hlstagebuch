@@ -507,26 +507,48 @@ document.getElementById('login-btn').addEventListener('click', async () => {
   const email = document.getElementById('login-email').value.trim();
   const pw = document.getElementById('login-pw').value;
   const statusEl = document.getElementById('login-status');
+  const btn = document.getElementById('login-btn');
+
   if(!email || pw.length < 6){
     statusEl.textContent = 'Bitte E-Mail und ein Passwort mit mind. 6 Zeichen eingeben.';
     statusEl.style.color = 'var(--danger)';
     return;
   }
+  if(!auth){
+    statusEl.textContent = 'Firebase ist noch nicht bereit – warte kurz und versuch es erneut, oder lade die Seite neu.';
+    statusEl.style.color = 'var(--danger)';
+    return;
+  }
+
+  btn.disabled = true;
   statusEl.textContent = 'Einen Moment …';
   statusEl.style.color = 'var(--cream-dim)';
+
+  const stuckTimer = setTimeout(() => {
+    statusEl.textContent = '⚠️ Das dauert ungewöhnlich lange – vermutlich blockiert dein Netzwerk/WLAN oder ein Adblocker die Verbindung zu Google/Firebase. Versuch mobile Daten statt WLAN, oder Adblocker kurz deaktivieren.';
+    statusEl.style.color = 'var(--danger)';
+    btn.disabled = false;
+  }, 10000);
+
   try{
     await auth.signInWithEmailAndPassword(email, pw);
+    clearTimeout(stuckTimer);
   } catch(err){
     if(err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential'){
       try{
         await auth.createUserWithEmailAndPassword(email, pw);
+        clearTimeout(stuckTimer);
       } catch(err2){
+        clearTimeout(stuckTimer);
         statusEl.textContent = 'Fehler: ' + err2.message;
         statusEl.style.color = 'var(--danger)';
+        btn.disabled = false;
       }
     } else {
+      clearTimeout(stuckTimer);
       statusEl.textContent = 'Fehler: ' + err.message;
       statusEl.style.color = 'var(--danger)';
+      btn.disabled = false;
     }
   }
 });
