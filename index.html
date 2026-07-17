@@ -314,6 +314,15 @@
       <div class="muted-line" id="loaded-count"></div>
       <div class="metric-toggles" id="metric-toggles"></div>
       <canvas id="history-chart" height="220"></canvas>
+      <p class="hint" style="margin-top:10px;">Tipp auf einen Punkt im Diagramm für die Details des Eintrags.</p>
+    </div>
+
+    <div id="entry-detail-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;align-items:center;justify-content:center;padding:20px;">
+      <div class="card" style="max-width:480px;width:100%;max-height:80vh;overflow-y:auto;position:relative;">
+        <button type="button" id="entry-detail-close" style="position:absolute;top:16px;right:16px;background:none;border:none;color:var(--cream-dim);font-size:22px;cursor:pointer;line-height:1;">×</button>
+        <h2 id="entry-detail-title">Eintrag</h2>
+        <div id="entry-detail-body" style="font-size:14px;line-height:1.9;"></div>
+      </div>
     </div>
 
     <div class="card">
@@ -1051,12 +1060,21 @@ function drawChart(){
     backgroundColor: m.color,
     tension: 0.3,
     pointRadius: 3,
+    pointHitRadius: 14,
   }));
   chartInstance = new Chart(ctx, {
     type: 'line',
     data: { labels, datasets },
     options: {
       responsive: true,
+      onClick: (evt, elements) => {
+        if(!elements.length) return;
+        const idx = elements[0].index;
+        showEntryDetail(entries[idx]);
+      },
+      onHover: (evt, elements) => {
+        evt.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+      },
       scales: {
         y: { min: 0, max: 12, ticks:{ color:'#9db0c7' }, grid:{ color:'#233045' } },
         x: { ticks:{ color:'#9db0c7', maxRotation:60, minRotation:60 }, grid:{ color:'#233045' } }
@@ -1065,6 +1083,41 @@ function drawChart(){
     }
   });
 }
+
+/* ============================================================
+   8b) EINTRAGS-DETAIL-OVERLAY (Klick auf Diagrammpunkt)
+   ============================================================ */
+function showEntryDetail(e){
+  if(!e) return;
+  document.getElementById('entry-detail-title').textContent = (e.dateStr||'') + ' · ' + (e.timeStr||'');
+
+  const rows = [];
+  SCALES.forEach(s => {
+    if(typeof e[s.key] === 'number') rows.push(`<div><b style="color:var(--accent-soft);">${s.label}:</b> ${e[s.key]} / 10</div>`);
+  });
+  rows.push(`<div><b style="color:var(--accent-soft);">Schlaf:</b> ${e.schlaf} h</div>`);
+  rows.push(`<div><b style="color:var(--accent-soft);">Letzter Kontakt:</b> ${kontaktText(e)}</div>`);
+
+  const activeTriggers = [
+    ...HABITS.filter(h => e[h.key] === true).map(h => h.label),
+    ...(Array.isArray(e.customTriggers) ? e.customTriggers.map(n => '✏️ ' + n) : [])
+  ];
+  rows.push(`<div><b style="color:var(--accent-soft);">Trigger:</b> ${activeTriggers.length ? activeTriggers.join(', ') : '–'}</div>`);
+
+  if(e.notizen){
+    rows.push(`<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);"><b style="color:var(--accent-soft);">Notiz:</b><br>${e.notizen.replace(/</g,'&lt;')}</div>`);
+  }
+
+  document.getElementById('entry-detail-body').innerHTML = rows.join('');
+  document.getElementById('entry-detail-overlay').style.display = 'flex';
+}
+
+document.getElementById('entry-detail-close').addEventListener('click', () => {
+  document.getElementById('entry-detail-overlay').style.display = 'none';
+});
+document.getElementById('entry-detail-overlay').addEventListener('click', (evt) => {
+  if(evt.target.id === 'entry-detail-overlay') evt.currentTarget.style.display = 'none';
+});
 
 /* ============================================================
    9) ANALYSE: KORRELATIONEN
