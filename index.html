@@ -194,6 +194,7 @@
   <h1>Wie steht's um dein Herz heute?</h1>
   <p>Ein kurzer täglicher Check-in – Datum und Uhrzeit werden automatisch mitgeloggt. Nach ein paar Wochen zeigt dir die Analyse, was wirklich zusammenhängt.</p>
   <button class="ghost" id="notif-btn" style="margin-top:14px;">🔔 Erinnerungen aktivieren</button>
+  <button class="ghost" id="test-notif-btn" style="margin-top:14px;margin-left:8px;display:none;">🧪 Testbenachrichtigung senden</button>
   <div id="notif-status" style="font-size:12px;color:var(--cream-dim);margin-top:8px;"></div>
 </header>
 
@@ -374,6 +375,11 @@ async function setupMessaging(){
     btn.disabled = true;
     return;
   }
+  if(Notification.permission === 'granted'){
+    btn.textContent = '🔔 Erinnerungen aktiv';
+    btn.disabled = true;
+    document.getElementById('test-notif-btn').style.display = 'inline-block';
+  }
   btn.addEventListener('click', async () => {
     try{
       const reg = await navigator.serviceWorker.register('firebase-messaging-sw.js');
@@ -389,8 +395,23 @@ async function setupMessaging(){
       btn.textContent = '🔔 Erinnerungen aktiv';
       btn.disabled = true;
       statusEl.textContent = 'Du bekommst jetzt Erinnerungen, wenn du länger nichts eingetragen hast.';
+      document.getElementById('test-notif-btn').style.display = 'inline-block';
     } catch(err){
       statusEl.textContent = 'Fehler: ' + err.message + ' (läuft die Seite über https:// ?)';
+    }
+  });
+
+  document.getElementById('test-notif-btn').addEventListener('click', async () => {
+    try{
+      const reg = await navigator.serviceWorker.ready;
+      await reg.showNotification('Gefühlstagebuch', {
+        body: 'Das ist eine Testbenachrichtigung 🎉 Wenn du das siehst, funktioniert alles.',
+        icon: 'icon-192.png',
+        badge: 'icon-192.png'
+      });
+      statusEl.textContent = 'Testbenachrichtigung gesendet – solltest du gleich sehen.';
+    } catch(err){
+      statusEl.textContent = 'Fehler beim Testen: ' + err.message;
     }
   });
 }
