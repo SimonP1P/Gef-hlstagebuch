@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0a0e15">
+<link rel="manifest" href="manifest.json">
 <title>Gefühlstagebuch</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -11,6 +13,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 
 <style>
@@ -190,6 +193,8 @@
   <div class="eyebrow">Privates Journal</div>
   <h1>Wie steht's um dein Herz heute?</h1>
   <p>Ein kurzer täglicher Check-in – Datum und Uhrzeit werden automatisch mitgeloggt. Nach ein paar Wochen zeigt dir die Analyse, was wirklich zusammenhängt.</p>
+  <button class="ghost" id="notif-btn" style="margin-top:14px;">🔔 Erinnerungen aktivieren</button>
+  <div id="notif-status" style="font-size:12px;color:var(--cream-dim);margin-top:8px;"></div>
 </header>
 
 <nav>
@@ -218,14 +223,21 @@
       <div id="scales-s1"></div>
 
       <div class="field">
-        <span class="scale-label">Kontakt heute</span>
-        <div class="chip-row" id="kontakt-chips">
-          <div class="chip" data-val="keiner">Keiner</div>
+        <span class="scale-label">Letzter Kontakt</span>
+        <div class="chip-row" id="kontaktart-chips">
+          <div class="chip" data-val="kein">Kein Kontakt</div>
           <div class="chip" data-val="chat">Chat</div>
           <div class="chip" data-val="telefon">Telefon</div>
           <div class="chip" data-val="treffen">Treffen</div>
         </div>
-        <div class="hint">Mehrfachauswahl möglich (z. B. Chat + Treffen)</div>
+        <div class="hint" style="margin:14px 0 8px;">Wie lange ist das her?</div>
+        <div class="chip-row" id="kontaktwann-chips">
+          <div class="chip" data-val="jetzt">Gerade eben</div>
+          <div class="chip" data-val="heute">Heute früher</div>
+          <div class="chip" data-val="gestern">Gestern</div>
+          <div class="chip" data-val="tage">2–3 Tage</div>
+          <div class="chip" data-val="laenger">Länger her</div>
+        </div>
       </div>
 
       <div class="sect-title">☀ Dein Tag</div>
@@ -336,9 +348,52 @@ const firebaseConfig = {
          allow create: if request.auth != null
            && request.auth.uid == request.resource.data.uid;
        }
+       match /fcmTokens/{tokenId} {
+         allow read, write: if request.auth != null
+           && request.auth.uid == tokenId;
+       }
      }
    }
 */
+
+/* ============================================================
+   1b) PUSH-BENACHRICHTIGUNGEN (Firebase Cloud Messaging)
+   ------------------------------------------------------------
+   VAPID-Key holst du dir in der Firebase-Konsole unter:
+   Projekteinstellungen -> Cloud Messaging -> "Web Push-Zertifikate"
+   -> "Schlüsselpaar generieren"
+   ============================================================ */
+const VAPID_KEY = "DEIN_VAPID_KEY";
+let messaging = null;
+
+async function setupMessaging(){
+  const btn = document.getElementById('notif-btn');
+  const statusEl = document.getElementById('notif-status');
+  if(!('serviceWorker' in navigator) || !('Notification' in window)){
+    statusEl.textContent = 'Dieser Browser unterstützt keine Push-Benachrichtigungen.';
+    btn.disabled = true;
+    return;
+  }
+  btn.addEventListener('click', async () => {
+    try{
+      const reg = await navigator.serviceWorker.register('firebase-messaging-sw.js');
+      messaging = firebase.messaging();
+      const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
+      if(!token){
+        statusEl.textContent = 'Kein Token erhalten – Berechtigung erteilt?';
+        return;
+      }
+      await db.collection('fcmTokens').doc(currentUid).set({
+        token, uid: currentUid, updatedAt: firebase.firestore.Timestamp.now()
+      });
+      btn.textContent = '🔔 Erinnerungen aktiv';
+      btn.disabled = true;
+      statusEl.textContent = 'Du bekommst jetzt Erinnerungen, wenn du länger nichts eingetragen hast.';
+    } catch(err){
+      statusEl.textContent = 'Fehler: ' + err.message + ' (läuft die Seite über https:// ?)';
+    }
+  });
+}
 
 let db, auth, currentUid = null;
 let entries = [];
@@ -373,9 +428,9 @@ function initFirebase(){
    2) SKALEN-DEFINITION (1–10 Tap-Buttons mit Wortankern)
    ============================================================ */
 const SCALES = [
-  {key:'verliebtheit', label:'Verliebtheit',                        lo:'kaum',         hi:'total verliebt', sect:'s1'},
+  {key:'verliebtheit', label:'Verliebtheit',                        lo:'ich struggle', hi:'ich bin mir sicher', sect:'s1'},
   {key:'vorfreude',    label:'Vorfreude aufs nächste Treffen',      lo:'gering',       hi:'riesig',         sect:'s1'},
-  {key:'wohl',         label:'Wohlgefühl mit ihr',                  lo:'unwohl',       hi:'ganz bei mir',   sect:'s1'},
+  {key:'wohl',         label:'Wohlgefühl bei dem Gedanken an sie',  lo:'unwohl',       hi:'warm ums Herz',  sect:'s1'},
   {key:'unsicherheit', label:'Unsicherheit, wie sie zu dir steht',  lo:'sehr sicher',  hi:'sehr unsicher',  sect:'s1'},
   {key:'stimmung',     label:'Stimmung allgemein',                  lo:'mies',         hi:'super',          sect:'s2'},
   {key:'stress',       label:'Stresslevel',                         lo:'entspannt',    hi:'am Limit',       sect:'s2'},
@@ -447,6 +502,10 @@ document.getElementById('prefill-btn').addEventListener('click', () => {
     if(typeof last[s.key] === 'number') selectScale(s.key, last[s.key]);
   });
   if(typeof last.schlaf === 'number') setSchlaf(last.schlaf);
+  if(last.kontakt && last.kontakt.art){
+    kontaktArt = last.kontakt.art;
+    document.querySelectorAll('#kontaktart-chips .chip').forEach(c => c.classList.toggle('active', c.dataset.val === kontaktArt));
+  }
   showStatus('Übernommen – jetzt nur noch anpassen, was heute anders ist.', true);
 });
 
@@ -454,6 +513,7 @@ document.getElementById('prefill-btn').addEventListener('click', () => {
    3) SCHLAF-STEPPER
    ============================================================ */
 let schlafVal = 7;
+let schlafInitialized = false;
 function setSchlaf(v){
   schlafVal = Math.min(14, Math.max(0, Math.round(v * 2) / 2));
   document.getElementById('schlaf-val').textContent = String(schlafVal).replace('.', ',') + ' h';
@@ -464,12 +524,20 @@ document.getElementById('schlaf-plus').addEventListener('click', () => setSchlaf
 /* ============================================================
    4) CHIPS: KONTAKT + GEWOHNHEITEN
    ============================================================ */
-const kontaktSelected = new Set();
-document.querySelectorAll('#kontakt-chips .chip').forEach(chip => {
+let kontaktArt = null;
+let kontaktWann = null;
+document.querySelectorAll('#kontaktart-chips .chip').forEach(chip => {
   chip.addEventListener('click', () => {
-    const val = chip.dataset.val;
-    if(kontaktSelected.has(val)){ kontaktSelected.delete(val); chip.classList.remove('active'); }
-    else { kontaktSelected.add(val); chip.classList.add('active'); }
+    kontaktArt = chip.dataset.val;
+    document.querySelectorAll('#kontaktart-chips .chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+  });
+});
+document.querySelectorAll('#kontaktwann-chips .chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    kontaktWann = chip.dataset.val;
+    document.querySelectorAll('#kontaktwann-chips .chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
   });
 });
 
@@ -541,7 +609,7 @@ document.getElementById('save-btn').addEventListener('click', async () => {
     vorfreude: scaleValues.vorfreude,
     wohl: scaleValues.wohl,
     unsicherheit: scaleValues.unsicherheit,
-    kontakt: Array.from(kontaktSelected),
+    kontakt: { art: kontaktArt, wann: kontaktWann },
     stimmung: scaleValues.stimmung,
     stress: scaleValues.stress,
     energie: scaleValues.energie,
@@ -571,8 +639,9 @@ function resetForm(){
   SCALES.forEach(s => clearScaleSelection(s.key));
   habits.alkohol = false; habits.sport = false;
   document.querySelectorAll('#habit-chips .chip').forEach(c => c.classList.remove('active'));
-  kontaktSelected.clear();
-  document.querySelectorAll('#kontakt-chips .chip').forEach(c => c.classList.remove('active'));
+  kontaktArt = null;
+  kontaktWann = null;
+  document.querySelectorAll('#kontaktart-chips .chip, #kontaktwann-chips .chip').forEach(c => c.classList.remove('active'));
   document.getElementById('v-notizen').value = '';
   // Schlaf bleibt stehen – ähnelt sich meist von Tag zu Tag
 }
@@ -595,6 +664,10 @@ async function loadEntries(){
       .get();
     entries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     entries.sort((a, b) => tsMs(a) - tsMs(b));
+    if(!schlafInitialized && entries.length && typeof entries[entries.length-1].schlaf === 'number'){
+      setSchlaf(entries[entries.length-1].schlaf);
+    }
+    schlafInitialized = true;
     document.getElementById('loaded-count').textContent =
       entries.length + (entries.length === 1 ? ' Eintrag geladen' : ' Einträge geladen');
     updatePrefillButton();
@@ -623,6 +696,16 @@ const METRICS = [
 ];
 let activeMetrics = new Set(['verliebtheit']);
 let chartInstance = null;
+
+const KONTAKTART_LABEL = { kein:'Kein Kontakt', chat:'Chat', telefon:'Telefon', treffen:'Treffen' };
+const KONTAKTWANN_LABEL = { jetzt:'gerade eben', heute:'heute früher', gestern:'gestern', tage:'2–3 Tage her', laenger:'länger her' };
+function kontaktText(e){
+  const k = e.kontakt;
+  if(!k || !k.art) return '–';
+  const art = KONTAKTART_LABEL[k.art] || k.art;
+  const wann = k.wann ? KONTAKTWANN_LABEL[k.wann] : '';
+  return wann ? art + ' · ' + wann : art;
+}
 
 function renderStats(){
   const row = document.getElementById('stats-row');
@@ -680,7 +763,7 @@ function renderHistory(){
     tr.innerHTML = `
       <td>${e.dateStr||''}</td><td>${e.timeStr||''}</td>
       <td>${e.verliebtheit}</td><td>${e.vorfreude}</td><td>${e.wohl}</td>
-      <td>${e.unsicherheit}</td><td>${(e.kontakt||[]).join(', ')||'–'}</td>
+      <td>${e.unsicherheit}</td><td>${kontaktText(e)}</td>
       <td>${e.stimmung}</td><td>${e.stress}</td><td>${e.energie}</td>
       <td>${e.schlaf}h</td><td>${e.hunger}</td><td>${e.verlangen}</td>
       <td><span class="row-del" data-id="${e.id}">löschen</span></td>
@@ -762,28 +845,43 @@ function renderAnalysis(){
     out.appendChild(div);
   });
 
-  const mitTreffen = entries.filter(e => (e.kontakt||[]).includes('treffen')).map(e => e.verliebtheit);
-  const ohneTreffen = entries.filter(e => !(e.kontakt||[]).includes('treffen')).map(e => e.verliebtheit);
+  const mitTreffen = entries.filter(e => e.kontakt && e.kontakt.art === 'treffen').map(e => e.verliebtheit);
+  const ohneTreffen = entries.filter(e => !e.kontakt || e.kontakt.art !== 'treffen').map(e => e.verliebtheit);
   if(mitTreffen.length && ohneTreffen.length){
     const avgA = mitTreffen.reduce((a,b)=>a+b,0)/mitTreffen.length;
     const avgB = ohneTreffen.reduce((a,b)=>a+b,0)/ohneTreffen.length;
     const diff = (avgA - avgB).toFixed(1);
     const div = document.createElement('div');
     div.className = 'insight';
-    div.innerHTML = `An Tagen mit <b>Treffen</b> ist deine Verliebtheit im Schnitt <b>${diff > 0 ? '+' : ''}${diff} Punkte</b> im Vergleich zu Tagen ohne Treffen (${avgA.toFixed(1)} vs. ${avgB.toFixed(1)}).`;
+    div.innerHTML = `Wenn der letzte Kontakt ein <b>Treffen</b> war, ist deine Verliebtheit im Schnitt <b>${diff > 0 ? '+' : ''}${diff} Punkte</b> höher als sonst (${avgA.toFixed(1)} vs. ${avgB.toFixed(1)}).`;
     out.appendChild(div);
   }
 
-  const keinKontakt = entries.filter(e => (e.kontakt||[]).includes('keiner') || (e.kontakt||[]).length===0).map(e => e.verliebtheit);
-  const mitKontakt = entries.filter(e => (e.kontakt||[]).length>0 && !(e.kontakt||[]).includes('keiner')).map(e => e.verliebtheit);
+  const keinKontakt = entries.filter(e => e.kontakt && e.kontakt.art === 'kein').map(e => e.verliebtheit);
+  const mitKontakt = entries.filter(e => e.kontakt && e.kontakt.art && e.kontakt.art !== 'kein').map(e => e.verliebtheit);
   if(keinKontakt.length && mitKontakt.length){
     const avgA = keinKontakt.reduce((a,b)=>a+b,0)/keinKontakt.length;
     const avgB = mitKontakt.reduce((a,b)=>a+b,0)/mitKontakt.length;
     const diff = (avgB - avgA).toFixed(1);
     const div = document.createElement('div');
     div.className = 'insight';
-    div.innerHTML = `An Tagen <b>ohne jeglichen Kontakt</b> liegt deine Verliebtheit im Schnitt bei ${avgA.toFixed(1)}, an Tagen mit Kontakt bei ${avgB.toFixed(1)} (Unterschied: ${diff > 0 ? '+' : ''}${diff}).`;
+    div.innerHTML = `Ohne jeglichen Kontakt liegt deine Verliebtheit im Schnitt bei ${avgA.toFixed(1)}, mit Kontakt bei ${avgB.toFixed(1)} (Unterschied: ${diff > 0 ? '+' : ''}${diff}).`;
     out.appendChild(div);
+  }
+
+  const RECENCY = { jetzt:1, heute:2, gestern:3, tage:4, laenger:5 };
+  const recPairs = entries.filter(e => e.kontakt && e.kontakt.wann && RECENCY[e.kontakt.wann]);
+  if(recPairs.length >= 5){
+    const r = pearson(recPairs.map(e => RECENCY[e.kontakt.wann]), recPairs.map(e => e.verliebtheit));
+    if(r !== null && Math.abs(r) >= 0.2){
+      const div = document.createElement('div');
+      div.className = 'insight';
+      const satz = r < 0
+        ? `Je <b>länger der letzte Kontakt her</b> ist, desto niedriger tendenziell deine Verliebtheit (r = ${r.toFixed(2)}).`
+        : `Je <b>länger der letzte Kontakt her</b> ist, desto höher tendenziell deine Verliebtheit (r = ${r.toFixed(2)}) – überraschend, oder?`;
+      div.innerHTML = satz;
+      out.appendChild(div);
+    }
   }
 
   if(out.children.length === 0){
@@ -805,6 +903,7 @@ document.addEventListener('dblclick', e => e.preventDefault());
 buildScales();
 setSchlaf(7);
 initFirebase();
+setupMessaging();
 </script>
 
 </body>
