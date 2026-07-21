@@ -111,6 +111,9 @@
   .field > .scale-label{display:block;margin-bottom:10px;}
   .field .hint{font-size:12px;color:var(--cream-dim);margin-top:7px;}
 
+  .trigger-cat{margin-bottom:16px;}
+  .trigger-cat-label{display:block;font-size:12px;font-weight:600;color:var(--accent2);margin-bottom:8px;}
+
   textarea{
     width:100%;background:var(--panel-soft);border:1px solid var(--line);
     color:var(--cream);border-radius:8px;padding:10px 12px;
@@ -195,13 +198,16 @@
   <p>Ein kurzer täglicher Check-in – Datum und Uhrzeit werden automatisch mitgeloggt. Nach ein paar Wochen zeigt dir die Analyse, was wirklich zusammenhängt.</p>
   <button class="ghost" id="notif-btn" style="margin-top:14px;">🔔 Erinnerungen aktivieren</button>
   <button class="ghost" id="test-notif-btn" style="margin-top:14px;margin-left:8px;display:none;">🧪 Testbenachrichtigung senden</button>
+  <button class="ghost" id="migration-btn" style="margin-top:14px;margin-left:8px;display:none;">🔧 Alte Einträge aufbereiten</button>
   <div id="notif-status" style="font-size:12px;color:var(--cream-dim);margin-top:8px;"></div>
+  <div id="migration-status" style="font-size:12px;color:var(--cream-dim);margin-top:4px;"></div>
 </header>
 
 <nav id="main-nav" style="display:none;">
   <button class="tab-btn active" data-tab="entry">Eintrag</button>
   <button class="tab-btn" data-tab="history">Verlauf</button>
   <button class="tab-btn" data-tab="analysis">Analyse</button>
+  <button class="tab-btn" data-tab="prognose">Prognose</button>
 </nav>
 
 <main>
@@ -246,6 +252,9 @@
       <div class="sect-title">♥ Sie &amp; du</div>
       <div id="scales-s1"></div>
 
+      <div class="sect-title">🧠 Gedanken &amp; Sicherheit</div>
+      <div id="scales-s1b"></div>
+
       <div class="field">
         <span class="scale-label">Letzter Kontakt</span>
         <div class="chip-row" id="kontaktart-chips">
@@ -263,6 +272,14 @@
           <div class="chip" data-val="4h">4 Stunden</div>
           <div class="chip" data-val="heute">Heute früher</div>
           <div class="chip" data-val="gestern">Gestern</div>
+        </div>
+        <div class="hint" style="margin:14px 0 8px;">Wie viel Kontakt hattest du heute insgesamt?</div>
+        <div class="chip-row" id="kontaktdauer-chips">
+          <div class="chip" data-val="0">0 Minuten</div>
+          <div class="chip" data-val="10">10 Minuten</div>
+          <div class="chip" data-val="30">30 Minuten</div>
+          <div class="chip" data-val="60">1 Stunde</div>
+          <div class="chip" data-val="120plus">2 Stunden+</div>
         </div>
       </div>
 
@@ -285,7 +302,7 @@
       <div class="field">
         <span class="scale-label">Heute außerdem</span>
         <p class="hint" style="margin-top:0;margin-bottom:12px;">Mehrfachauswahl – nur das antippen, was heute wirklich zutrifft.</p>
-        <div class="chip-row" id="habit-chips"></div>
+        <div id="trigger-categories"></div>
         <button type="button" class="ghost" id="add-trigger-btn" style="margin-top:12px;">+ Eigenen Trigger hinzufügen</button>
         <div id="add-trigger-row" style="display:none;margin-top:10px;gap:8px;">
           <input type="text" id="new-trigger-text" placeholder="z. B. „Sie hat sich nicht gemeldet“" style="width:100%;background:var(--panel-soft);border:1px solid var(--line);color:var(--cream);border-radius:8px;padding:11px 12px;font-family:'Inter';font-size:16px;margin-bottom:8px;">
@@ -331,7 +348,8 @@
         <table id="history-table">
           <thead>
             <tr>
-              <th>Datum</th><th>Zeit</th><th>Verl.</th><th>Vorfr.</th><th>Wohl</th>
+              <th>Datum</th><th>Zeit</th><th>Verl.</th><th>Liebe</th><th>Anzieh.</th><th>Alltag</th><th>Zukunft</th>
+              <th>Vorfr.</th><th>Wohl</th>
               <th>Unsich.</th><th>Kontakt</th><th>Stimm.</th><th>Stress</th><th>Energie</th>
               <th>Schlaf</th><th>Hunger</th><th>Verl.(k)</th><th>Trigger</th><th></th>
             </tr>
@@ -350,6 +368,33 @@
       <p class="sub">Automatisch berechnet aus deinen bisherigen Einträgen. Je mehr Daten, desto belastbarer.</p>
       <div id="analysis-out"></div>
       <p class="empty" id="analysis-empty" style="display:none;">Trage mindestens 5 Einträge ein, damit Korrelationen sinnvoll werden.</p>
+    </div>
+  </section>
+
+  <!-- ===================== TAB: PROGNOSE ===================== -->
+  <section id="tab-prognose" class="tab-panel" style="display:none;">
+    <div class="card">
+      <h2>Vorhersage für morgen</h2>
+      <p class="sub">Schätz jetzt schon ein, wie du dich morgen fühlen wirst. Am nächsten Tag vergleicht die App das automatisch mit deinem echten Eintrag.</p>
+      <div class="entry-meta"><span class="when" id="prognose-target-display">–</span></div>
+      <div id="scales-prognose"></div>
+      <button class="primary" id="prognose-save-btn">Vorhersage speichern</button>
+      <div id="prognose-status"></div>
+    </div>
+
+    <div class="card">
+      <h2>Deine Prognosegenauigkeit</h2>
+      <p class="sub">Vergleich deiner Vorhersagen mit dem, was tatsächlich eingetreten ist.</p>
+      <div id="prognose-bias-out"></div>
+      <div class="table-wrap">
+        <table id="prognose-table">
+          <thead>
+            <tr><th>Für</th><th>Liebe (Prog./Ist)</th><th>Anzieh. (Prog./Ist)</th><th>Alltag (Prog./Ist)</th><th>Zukunft (Prog./Ist)</th></tr>
+          </thead>
+          <tbody id="prognose-tbody"></tbody>
+        </table>
+      </div>
+      <p class="empty" id="prognose-empty" style="display:none;">Noch keine Vorhersagen vorhanden.</p>
     </div>
   </section>
 
@@ -395,6 +440,12 @@ const firebaseConfig = {
        match /customTriggers/{tokenId} {
          allow read, write: if request.auth != null
            && request.auth.uid == tokenId;
+       }
+       match /predictions/{predictionId} {
+         allow read, write: if request.auth != null
+           && request.auth.uid == resource.data.uid;
+         allow create: if request.auth != null
+           && request.auth.uid == request.resource.data.uid;
        }
      }
    }
@@ -496,6 +547,7 @@ function initFirebase(){
         document.getElementById('main-nav').style.display = 'flex';
         loadEntries();
         loadCustomTriggers();
+        loadPredictions();
       } else {
         currentUid = null;
         document.getElementById('login-card').style.display = 'block';
@@ -594,15 +646,25 @@ document.getElementById('login-btn').addEventListener('click', async () => {
    2) SKALEN-DEFINITION (1–10 Tap-Buttons mit Wortankern)
    ============================================================ */
 const SCALES = [
-  {key:'verliebtheit', label:'Verliebtheit',                        lo:'ich struggle', hi:'ich bin mir sicher', sect:'s1'},
-  {key:'vorfreude',    label:'Vorfreude aufs nächste Treffen',      lo:'gering',       hi:'riesig',         sect:'s1'},
-  {key:'wohl',         label:'Wohlgefühl bei dem Gedanken an sie',  lo:'unwohl',       hi:'warm ums Herz',  sect:'s1'},
-  {key:'unsicherheit', label:'Unsicherheit, wie sie zu dir steht',  lo:'sehr sicher',  hi:'sehr unsicher',  sect:'s1'},
-  {key:'stimmung',     label:'Stimmung allgemein',                  lo:'mies',         hi:'super',          sect:'s2'},
-  {key:'stress',       label:'Stresslevel',                         lo:'entspannt',    hi:'am Limit',       sect:'s2'},
-  {key:'energie',      label:'Energie',                             lo:'erschöpft',    hi:'voll da',        sect:'s2'},
-  {key:'hunger',       label:'Hunger / Sättigung',                  lo:'sehr hungrig', hi:'sehr satt',      sect:'s3'},
-  {key:'verlangen',    label:'Körperliches Verlangen',              lo:'keins',        hi:'stark',          sect:'s3'},
+  {key:'liebe',            label:'❤️ Emotionale Liebe',                        lo:'kaum spürbar',    hi:'überwältigend',   sect:'s1'},
+  {key:'anziehung',        label:'😍 Anziehung',                                lo:'gering',          hi:'stark',           sect:'s1'},
+  {key:'alltagswunsch',    label:'🏠 Alltagswunsch',                            lo:'kein Bedürfnis',  hi:'sehr groß',       sect:'s1'},
+  {key:'zukunftswunsch',   label:'💍 Zukunftswunsch',                           lo:'kein Bedürfnis',  hi:'sehr groß',       sect:'s1'},
+  {key:'vorfreude',        label:'Vorfreude aufs nächste Treffen',              lo:'gering',          hi:'riesig',          sect:'s1'},
+  {key:'wohl',             label:'Wohlgefühl bei dem Gedanken an sie',          lo:'unwohl',          hi:'warm ums Herz',   sect:'s1'},
+  {key:'unsicherheit',     label:'Unsicherheit, wie sie zu dir steht',          lo:'sehr sicher',     hi:'sehr unsicher',   sect:'s1'},
+  {key:'gedankenfrequenz', label:'🧠 Wie oft musstest du heute an sie denken?', lo:'kaum',            hi:'ständig',         sect:'s1b'},
+  {key:'beruhigung',       label:'😌 Wie beruhigend fühlt sich der Gedanke an sie an?', lo:'gar nicht', hi:'sehr',          sect:'s1b'},
+  {key:'idealisierung',    label:'💭 Wie sehr hast du sie heute idealisiert?', lo:'gar nicht',        hi:'stark',           sect:'s1b'},
+  {key:'sicherheitIhrerLiebe', label:'🔒 Wie sicher bist du dir, dass sie dich liebt?', lo:'gar nicht sicher', hi:'ganz sicher', sect:'s1b'},
+  {key:'vertrauenIhr',     label:'🤝 Wie sehr vertraust du ihr?',               lo:'wenig',           hi:'voll',            sect:'s1b'},
+  {key:'vertrauenGefuehle', label:'🧭 Wie sehr vertraust du deinen eigenen Gefühlen?', lo:'wenig',     hi:'voll',            sect:'s1b'},
+  {key:'umzugsfrage',      label:'🚚 „Ich ziehe in deine Stadt" – wie würdest du dich fühlen?', lo:'überfordert', hi:'größte Freude', sect:'s1b'},
+  {key:'stimmung',         label:'Stimmung allgemein',                          lo:'mies',            hi:'super',           sect:'s2'},
+  {key:'stress',           label:'Stresslevel',                                 lo:'entspannt',       hi:'am Limit',        sect:'s2'},
+  {key:'energie',          label:'Energie',                                     lo:'erschöpft',       hi:'voll da',         sect:'s2'},
+  {key:'hunger',           label:'Hunger / Sättigung',                          lo:'sehr hungrig',    hi:'sehr satt',       sect:'s3'},
+  {key:'verlangen',        label:'Körperliches Verlangen',                      lo:'keins',           hi:'stark',           sect:'s3'},
 ];
 
 const scaleValues = {};   // key -> 1..10 oder null
@@ -692,6 +754,7 @@ document.getElementById('schlaf-plus').addEventListener('click', () => setSchlaf
    ============================================================ */
 let kontaktArt = null;
 let kontaktWann = null;
+let kontaktDauer = null;
 document.querySelectorAll('#kontaktart-chips .chip').forEach(chip => {
   chip.addEventListener('click', () => {
     kontaktArt = chip.dataset.val;
@@ -706,55 +769,180 @@ document.querySelectorAll('#kontaktwann-chips .chip').forEach(chip => {
     chip.classList.add('active');
   });
 });
+document.querySelectorAll('#kontaktdauer-chips .chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    kontaktDauer = chip.dataset.val;
+    document.querySelectorAll('#kontaktdauer-chips .chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+  });
+});
 
-const HABITS = [
-  {key:'alkohol',      label:'🍷 Alkohol'},
-  {key:'sport',        label:'🏃 Sport'},
-  {key:'porno',        label:'🔞 Pornokonsum'},
-  {key:'andereFrauen', label:'👀 Andere Frauen leicht bekleidet gesehen'},
-  {key:'masturbiert',  label:'✋ Masturbiert'},
-  {key:'socialMedia',  label:'📱 Social Media viel gescrollt'},
-  {key:'streit',       label:'⚡ Streit mit ihr gehabt'},
-  {key:'kompliment',   label:'✨ Kompliment bekommen'},
-  {key:'freunde',      label:'👥 Mit Freunden abgehangen'},
-  {key:'einsamkeit',   label:'🌙 Einsamkeit gespürt'},
-  {key:'erfolg',       label:'🏆 Erfolgserlebnis gehabt'},
-  {key:'verglichen',   label:'⚖️ Viel verglichen'},
-  {key:'jemandBesseres', label:'💭 Gedanke: jemand Besseres finden'},
-  {key:'unerwartet',   label:'❓ Ihr Verhalten war unerwartet'},
+const TRIGGER_CATEGORIES = [
+  {key:'kontakt',  label:'💬 Kontakt & Kommunikation'},
+  {key:'naehe',    label:'🤝 Nähe & gemeinsame Zeit'},
+  {key:'gedanken', label:'🧠 Gedanken & Innenleben'},
+  {key:'alltag',   label:'🌍 Alltag & Umfeld'},
 ];
-const habits = {};
-HABITS.forEach(h => habits[h.key] = false);
 
-let customTriggers = [];             // Namen, die der Nutzer selbst angelegt hat
-let customTriggerActive = new Set(); // aktuell im Formular ausgewählte eigene Trigger
+/* legacyKey  = alte boolesche Feldnamen (frühere feste Trigger) für die Auswertung alter Einträge
+   legacyCustomName = alter String-Name aus dem customTriggers-Array (frühere eigene Trigger) */
+const TRIGGERS = [
+  // Kontakt & Kommunikation
+  {key:'geschrieben',            label:'Sie hat mir geschrieben', cat:'kontakt'},
+  {key:'selbstGeschrieben',      label:'Sie hat von sich aus geschrieben', cat:'kontakt'},
+  {key:'komplimentVonIhr',       label:'Sie hat mir ein Kompliment gemacht', cat:'kontakt', legacyKey:'kompliment'},
+  {key:'interesseGezeigt',       label:'Sie hat Interesse gezeigt', cat:'kontakt'},
+  {key:'guteNacht',              label:'Gute Nacht geschrieben', cat:'kontakt'},
+  {key:'gutenMorgen',            label:'Guten Morgen geschrieben', cat:'kontakt'},
+  {key:'initiative',             label:'Sie hat Initiative gezeigt', cat:'kontakt'},
+  {key:'vermisst',               label:'Sie hat mich vermisst', cat:'kontakt'},
+  {key:'telefoniert',            label:'Wir haben telefoniert', cat:'kontakt'},
+  {key:'videoanruf',             label:'Videoanruf', cat:'kontakt'},
+  {key:'spaeterAlsErwartet',     label:'Nachricht kam viel später als erwartet', cat:'kontakt'},
+  {key:'kurzeNachricht',         label:'Nachricht war sehr kurz', cat:'kontakt'},
+  {key:'oberflaechlich',         label:'Gespräch wirkte oberflächlich', cat:'kontakt'},
+  {key:'distanziert',            label:'Sie wirkte distanziert', cat:'kontakt'},
+  {key:'streitMitIhr',           label:'Streit mit ihr gehabt', cat:'kontakt', legacyKey:'streit'},
+  {key:'missverstaendnis',       label:'Missverständnis', cat:'kontakt'},
+  {key:'unerwartetesVerhalten',  label:'Ihr Verhalten war unerwartet', cat:'kontakt', legacyKey:'unerwartet'},
+  {key:'ueberSieGeredet',        label:'Über sie geredet', cat:'kontakt', legacyCustomName:'Über sie geredet'},
 
-function buildHabitChips(){
-  const wrap = document.getElementById('habit-chips');
-  wrap.innerHTML = '';
-  HABITS.forEach(h => {
-    const chip = document.createElement('div');
-    chip.className = 'chip' + (habits[h.key] ? ' active' : '');
-    chip.dataset.key = h.key;
-    chip.textContent = h.label;
-    chip.addEventListener('click', () => {
-      habits[h.key] = !habits[h.key];
-      chip.classList.toggle('active', habits[h.key]);
-    });
-    wrap.appendChild(chip);
-  });
-  customTriggers.forEach(name => {
-    const chip = document.createElement('div');
-    chip.className = 'chip' + (customTriggerActive.has(name) ? ' active' : '');
-    chip.textContent = '✏️ ' + name;
-    chip.addEventListener('click', () => {
-      if(customTriggerActive.has(name)){ customTriggerActive.delete(name); chip.classList.remove('active'); }
-      else { customTriggerActive.add(name); chip.classList.add('active'); }
-    });
-    wrap.appendChild(chip);
-  });
+  // Nähe & gemeinsame Zeit
+  {key:'gelacht',           label:'Wir haben gelacht', cat:'naehe'},
+  {key:'tiefesGespraech',   label:'Tiefes Gespräch', cat:'naehe', legacyCustomName:'Tiefere Gespräche mit ihr'},
+  {key:'zukunftsplaene',    label:'Sie hat Zukunftspläne erwähnt', cat:'naehe'},
+  {key:'fotosAngeschaut',   label:'Gemeinsame Fotos angeschaut', cat:'naehe'},
+  {key:'erinnerungen',      label:'Gemeinsame Erinnerungen', cat:'naehe'},
+  {key:'plaeneGemacht',     label:'Gemeinsame Pläne gemacht', cat:'naehe'},
+  {key:'wirkteGluecklich',  label:'Sie wirkte glücklich', cat:'naehe'},
+  {key:'koerperlicheNaehe', label:'Körperliche Nähe', cat:'naehe'},
+  {key:'umarmung',          label:'Umarmung', cat:'naehe'},
+  {key:'kuss',              label:'Kuss', cat:'naehe'},
+  {key:'dirtyTalk',         label:'Leichter Dirty Talk', cat:'naehe', legacyCustomName:'Leichter Dirty Talk'},
+
+  // Gedanken & Innenleben
+  {key:'verstandenGefuehlt',       label:'Ich habe mich verstanden gefühlt', cat:'gedanken'},
+  {key:'begehrtGefuehlt',          label:'Ich habe mich begehrt gefühlt', cat:'gedanken'},
+  {key:'ueberanalysiert',          label:'Ich habe überanalysiert', cat:'gedanken'},
+  {key:'socialMediaGecheckt',      label:'Social Media gecheckt', cat:'gedanken', legacyKey:'socialMedia'},
+  {key:'storyGesehen',             label:'Story gesehen', cat:'gedanken'},
+  {key:'storyNichtAngeschaut',     label:'Story nicht angeschaut', cat:'gedanken'},
+  {key:'nachrichtMehrfachGelesen', label:'Nachricht mehrfach gelesen', cat:'gedanken'},
+  {key:'eifersucht',               label:'Eifersucht', cat:'gedanken'},
+  {key:'angstSieZuVerlieren',      label:'Angst, sie zu verlieren', cat:'gedanken'},
+  {key:'verlustangst',             label:'Verlustangst', cat:'gedanken'},
+  {key:'gruebeln',                 label:'Grübeln', cat:'gedanken'},
+  {key:'einsamkeit',               label:'Einsamkeit gespürt', cat:'gedanken', legacyKey:'einsamkeit'},
+  {key:'vergleichen',              label:'Viel verglichen', cat:'gedanken', legacyKey:'verglichen'},
+  {key:'jemandBesseres',           label:'Gedanke: jemand Besseres finden', cat:'gedanken', legacyKey:'jemandBesseres'},
+  {key:'sinnlosigkeit',            label:'Sinnlosigkeit', cat:'gedanken', legacyCustomName:'Sinnlosigkeit'},
+  {key:'wunschWieAndere',          label:'Den Wunsch gehabt, dass sie auch so ist wie andere', cat:'gedanken', legacyCustomName:'Den Wunsch gehabt dass sie auch so ist wie andere'},
+
+  // Alltag & Umfeld
+  {key:'schlechteLaune',   label:'Schlechte Laune', cat:'alltag'},
+  {key:'wenigGeschlafen',  label:'Wenig geschlafen', cat:'alltag'},
+  {key:'vielGearbeitet',   label:'Viel gearbeitet', cat:'alltag'},
+  {key:'klausurenStress',  label:'Klausuren/Stress', cat:'alltag'},
+  {key:'krank',            label:'Krank', cat:'alltag'},
+  {key:'sportGemacht',     label:'Viel Sport', cat:'alltag', legacyKey:'sport'},
+  {key:'freundeGetroffen', label:'Freunde getroffen', cat:'alltag', legacyKey:'freunde'},
+  {key:'familieGesehen',   label:'Familie gesehen', cat:'alltag'},
+  {key:'vielDraussen',     label:'Viel draußen', cat:'alltag'},
+  {key:'neuesErlebt',      label:'Neues erlebt', cat:'alltag'},
+  {key:'langeAutofahrt',   label:'Lange Autofahrt', cat:'alltag'},
+  {key:'alkohol',          label:'Alkohol', cat:'alltag', legacyKey:'alkohol'},
+  {key:'kaffee',           label:'Kaffee', cat:'alltag'},
+  {key:'wenigGegessen',    label:'Wenig gegessen', cat:'alltag'},
+  {key:'vielGegessen',     label:'Viel gegessen', cat:'alltag'},
+  {key:'porno',            label:'Pornokonsum', cat:'alltag', legacyKey:'porno'},
+  {key:'andereFrauen',     label:'Andere Frauen leicht bekleidet gesehen', cat:'alltag', legacyKey:'andereFrauen'},
+  {key:'masturbiert',      label:'Masturbiert', cat:'alltag', legacyKey:'masturbiert'},
+  {key:'erfolg',           label:'Erfolgserlebnis gehabt', cat:'alltag', legacyKey:'erfolg'},
+  {key:'americaIstGeil',   label:'America ist geil', cat:'alltag', legacyCustomName:'America ist geil'},
+  {key:'heimweh',          label:'Heimweh', cat:'alltag', legacyCustomName:'Heimweh'},
+];
+
+/* Namen, die früher eigene Trigger waren und jetzt fest in TRIGGERS eingebaut sind –
+   werden nach der Migration aus der dynamischen "Eigene"-Liste entfernt, damit nichts doppelt auftaucht. */
+const PROMOTED_LEGACY_NAMES = TRIGGERS.filter(t => t.legacyCustomName).map(t => t.legacyCustomName);
+
+let customTriggers = [];             // eigene Trigger, die der Nutzer zusätzlich angelegt hat (nicht in TRIGGERS)
+let selectedTriggers = new Set();    // aktuell im Formular ausgewählte Trigger-Keys bzw. eigene Namen
+
+/* Prüft, ob ein Eintrag (alt oder neu) einen Trigger "hat" – deckt sowohl das neue
+   einheitliche triggers-Array als auch alte boolesche Felder / alte customTriggers-Strings ab. */
+function entryHasTrigger(e, t){
+  if(Array.isArray(e.triggers) && e.triggers.includes(t.key)) return true;
+  if(t.legacyKey && e[t.legacyKey] === true) return true;
+  if(t.legacyCustomName && Array.isArray(e.customTriggers) && e.customTriggers.includes(t.legacyCustomName)) return true;
+  return false;
 }
-buildHabitChips();
+
+/* Liste aller aktiven Trigger-Labels eines Eintrags (feste + eigene, alt + neu), für Tabelle/Detail. */
+function activeTriggerLabels(e){
+  const predefined = TRIGGERS.filter(t => entryHasTrigger(e, t)).map(t => t.label);
+  const rawTriggers = Array.isArray(e.triggers) ? e.triggers : [];
+  const customFromNew = rawTriggers.filter(name => !TRIGGERS.some(t => t.key === name)).map(n => '✏️ ' + n);
+  const customFromLegacy = Array.isArray(e.customTriggers)
+    ? e.customTriggers.filter(n => !PROMOTED_LEGACY_NAMES.includes(n)).map(n => '✏️ ' + n)
+    : [];
+  return [...predefined, ...customFromNew, ...customFromLegacy];
+}
+
+function buildTriggerChips(){
+  const wrap = document.getElementById('trigger-categories');
+  wrap.innerHTML = '';
+
+  TRIGGER_CATEGORIES.forEach(cat => {
+    const catDiv = document.createElement('div');
+    catDiv.className = 'trigger-cat';
+    const label = document.createElement('span');
+    label.className = 'trigger-cat-label';
+    label.textContent = cat.label;
+    catDiv.appendChild(label);
+
+    const row = document.createElement('div');
+    row.className = 'chip-row';
+    TRIGGERS.filter(t => t.cat === cat.key).forEach(t => {
+      const chip = document.createElement('div');
+      chip.className = 'chip' + (selectedTriggers.has(t.key) ? ' active' : '');
+      chip.textContent = t.label;
+      chip.addEventListener('click', () => {
+        if(selectedTriggers.has(t.key)){ selectedTriggers.delete(t.key); chip.classList.remove('active'); }
+        else { selectedTriggers.add(t.key); chip.classList.add('active'); }
+      });
+      row.appendChild(chip);
+    });
+    catDiv.appendChild(row);
+    wrap.appendChild(catDiv);
+  });
+
+  const eigene = customTriggers.filter(name => !PROMOTED_LEGACY_NAMES.includes(name));
+  if(eigene.length){
+    const catDiv = document.createElement('div');
+    catDiv.className = 'trigger-cat';
+    const label = document.createElement('span');
+    label.className = 'trigger-cat-label';
+    label.textContent = '✏️ Eigene';
+    catDiv.appendChild(label);
+
+    const row = document.createElement('div');
+    row.className = 'chip-row';
+    eigene.forEach(name => {
+      const chip = document.createElement('div');
+      chip.className = 'chip' + (selectedTriggers.has(name) ? ' active' : '');
+      chip.textContent = '✏️ ' + name;
+      chip.addEventListener('click', () => {
+        if(selectedTriggers.has(name)){ selectedTriggers.delete(name); chip.classList.remove('active'); }
+        else { selectedTriggers.add(name); chip.classList.add('active'); }
+      });
+      row.appendChild(chip);
+    });
+    catDiv.appendChild(row);
+    wrap.appendChild(catDiv);
+  }
+}
+buildTriggerChips();
 
 /* Eigene Trigger anlegen (persistent in Firestore, pro Account) */
 document.getElementById('add-trigger-btn').addEventListener('click', () => {
@@ -774,8 +962,8 @@ document.getElementById('confirm-trigger-btn').addEventListener('click', async (
     return;
   }
   customTriggers.push(name);
-  customTriggerActive.add(name);
-  buildHabitChips();
+  selectedTriggers.add(name);
+  buildTriggerChips();
   input.value = '';
   document.getElementById('add-trigger-row').style.display = 'none';
 
@@ -793,11 +981,57 @@ async function loadCustomTriggers(){
   try{
     const doc = await db.collection('customTriggers').doc(currentUid).get();
     customTriggers = (doc.exists && Array.isArray(doc.data().names)) ? doc.data().names : [];
-    buildHabitChips();
+    buildTriggerChips();
   } catch(err){
     console.error('Eigene Trigger konnten nicht geladen werden', err);
   }
 }
+
+/* ============================================================
+   6b) MIGRATION: alte Einträge um die 4 Liebes-Teilskalen ergänzen
+   ------------------------------------------------------------
+   Additiv & einmalig: bestehende Felder werden nie gelöscht,
+   nur fehlende Felder ergänzt (geschätzt aus dem alten Gesamtwert).
+   ============================================================ */
+function updateMigrationButtonVisibility(){
+  const btn = document.getElementById('migration-btn');
+  const needsMigration = entries.some(e => typeof e.verliebtheit === 'number' && typeof e.liebe !== 'number');
+  btn.style.display = needsMigration ? 'inline-block' : 'none';
+}
+
+async function runMigration(){
+  if(!db || !currentUid) return;
+  const btn = document.getElementById('migration-btn');
+  const statusEl = document.getElementById('migration-status');
+  btn.disabled = true;
+  statusEl.textContent = 'Migration läuft …';
+  try{
+    const toMigrate = entries.filter(e => typeof e.verliebtheit === 'number' && typeof e.liebe !== 'number');
+    for(const e of toMigrate){
+      await db.collection('entries').doc(e.id).update({
+        liebe: e.verliebtheit,
+        anziehung: e.verliebtheit,
+        alltagswunsch: e.verliebtheit,
+        zukunftswunsch: e.verliebtheit,
+        migriert: true
+      });
+    }
+    if(customTriggers.some(n => PROMOTED_LEGACY_NAMES.includes(n))){
+      const cleaned = customTriggers.filter(n => !PROMOTED_LEGACY_NAMES.includes(n));
+      await db.collection('customTriggers').doc(currentUid).set({ names: cleaned });
+      customTriggers = cleaned;
+      buildTriggerChips();
+    }
+    statusEl.textContent = `Fertig – ${toMigrate.length} ${toMigrate.length === 1 ? 'Eintrag' : 'Einträge'} aufbereitet.`;
+    await loadEntries();
+  } catch(err){
+    statusEl.textContent = 'Fehler bei der Migration: ' + err.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('migration-btn').addEventListener('click', runMigration);
 
 /* ============================================================
    5) TABS + UHRZEIT
@@ -810,6 +1044,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.getElementById('tab-' + btn.dataset.tab).style.display = 'block';
     if(btn.dataset.tab === 'history') renderHistory();
     if(btn.dataset.tab === 'analysis') renderAnalysis();
+    if(btn.dataset.tab === 'prognose') renderPrognose();
   });
 });
 
@@ -848,38 +1083,38 @@ document.getElementById('save-btn').addEventListener('click', async () => {
   }
 
   const now = new Date();
+  const verliebtheitGesamt = Math.round(
+    ((scaleValues.liebe + scaleValues.anziehung + scaleValues.alltagswunsch + scaleValues.zukunftswunsch) / 4) * 10
+  ) / 10;
   const entry = {
     uid: currentUid,
     timestamp: firebase.firestore.Timestamp.fromDate(now),
     dateStr: now.toLocaleDateString('de-DE'),
     timeStr: now.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'}),
     weekday: now.getDay(),
-    verliebtheit: scaleValues.verliebtheit,
+    liebe: scaleValues.liebe,
+    anziehung: scaleValues.anziehung,
+    alltagswunsch: scaleValues.alltagswunsch,
+    zukunftswunsch: scaleValues.zukunftswunsch,
+    verliebtheit: verliebtheitGesamt,
     vorfreude: scaleValues.vorfreude,
     wohl: scaleValues.wohl,
     unsicherheit: scaleValues.unsicherheit,
-    kontakt: { art: kontaktArt, wann: kontaktWann },
+    gedankenfrequenz: scaleValues.gedankenfrequenz,
+    beruhigung: scaleValues.beruhigung,
+    idealisierung: scaleValues.idealisierung,
+    sicherheitIhrerLiebe: scaleValues.sicherheitIhrerLiebe,
+    vertrauenIhr: scaleValues.vertrauenIhr,
+    vertrauenGefuehle: scaleValues.vertrauenGefuehle,
+    umzugsfrage: scaleValues.umzugsfrage,
+    kontakt: { art: kontaktArt, wann: kontaktWann, dauer: kontaktDauer },
     stimmung: scaleValues.stimmung,
     stress: scaleValues.stress,
     energie: scaleValues.energie,
     schlaf: schlafVal,
     hunger: scaleValues.hunger,
     verlangen: scaleValues.verlangen,
-    alkohol: habits.alkohol,
-    sport: habits.sport,
-    porno: habits.porno,
-    andereFrauen: habits.andereFrauen,
-    masturbiert: habits.masturbiert,
-    socialMedia: habits.socialMedia,
-    streit: habits.streit,
-    kompliment: habits.kompliment,
-    freunde: habits.freunde,
-    einsamkeit: habits.einsamkeit,
-    erfolg: habits.erfolg,
-    verglichen: habits.verglichen,
-    jemandBesseres: habits.jemandBesseres,
-    unerwartet: habits.unerwartet,
-    customTriggers: Array.from(customTriggerActive),
+    triggers: Array.from(selectedTriggers),
     notizen: document.getElementById('v-notizen').value.trim()
   };
 
@@ -899,12 +1134,12 @@ document.getElementById('save-btn').addEventListener('click', async () => {
 
 function resetForm(){
   SCALES.forEach(s => clearScaleSelection(s.key));
-  HABITS.forEach(h => habits[h.key] = false);
-  customTriggerActive.clear();
-  buildHabitChips();
+  selectedTriggers.clear();
+  buildTriggerChips();
   kontaktArt = null;
   kontaktWann = null;
-  document.querySelectorAll('#kontaktart-chips .chip, #kontaktwann-chips .chip').forEach(c => c.classList.remove('active'));
+  kontaktDauer = null;
+  document.querySelectorAll('#kontaktart-chips .chip, #kontaktwann-chips .chip, #kontaktdauer-chips .chip').forEach(c => c.classList.remove('active'));
   document.getElementById('v-notizen').value = '';
   // Schlaf bleibt stehen – ähnelt sich meist von Tag zu Tag
 }
@@ -934,8 +1169,10 @@ async function loadEntries(){
     document.getElementById('loaded-count').textContent =
       entries.length + (entries.length === 1 ? ' Eintrag geladen' : ' Einträge geladen');
     updatePrefillButton();
+    updateMigrationButtonVisibility();
     renderHistory();
     renderAnalysis();
+    renderPrognose();
   } catch(err){
     errEl.textContent = 'Fehler beim Laden: ' + err.message;
     console.error('Ladefehler', err);
@@ -946,28 +1183,41 @@ async function loadEntries(){
    8) VERLAUF: STATISTIK, CHART, TABELLE
    ============================================================ */
 const METRICS = [
-  {key:'verliebtheit', label:'Verliebtheit',     color:'#45c1ff'},
-  {key:'vorfreude',    label:'Vorfreude',        color:'#ffd166'},
-  {key:'wohl',         label:'Wohlgefühl',       color:'#a78bfa'},
-  {key:'unsicherheit', label:'Unsicherheit',     color:'#ff8095'},
-  {key:'stimmung',     label:'Stimmung',         color:'#5fdd9d'},
-  {key:'stress',       label:'Stress',           color:'#ff9f43'},
-  {key:'energie',      label:'Energie',          color:'#a3e635'},
-  {key:'schlaf',       label:'Schlaf (h)',       color:'#5eead4'},
-  {key:'hunger',       label:'Hunger/Sättigung', color:'#e2a6ff'},
-  {key:'verlangen',    label:'Verlangen',        color:'#f472b6'},
+  {key:'verliebtheit',      label:'Verliebtheit (Gesamt)',            color:'#45c1ff'},
+  {key:'liebe',             label:'Liebe',                            color:'#ff6b81'},
+  {key:'anziehung',         label:'Anziehung',                        color:'#ff9ff3'},
+  {key:'alltagswunsch',     label:'Alltagswunsch',                    color:'#feca57'},
+  {key:'zukunftswunsch',    label:'Zukunftswunsch',                   color:'#54a0ff'},
+  {key:'vorfreude',         label:'Vorfreude',                        color:'#ffd166'},
+  {key:'wohl',              label:'Wohlgefühl',                       color:'#a78bfa'},
+  {key:'unsicherheit',      label:'Unsicherheit',                     color:'#ff8095'},
+  {key:'gedankenfrequenz',  label:'Gedankenfrequenz',                 color:'#00d2d3'},
+  {key:'beruhigung',        label:'Beruhigung durch Gedanken',        color:'#48dbfb'},
+  {key:'idealisierung',     label:'Idealisierung',                    color:'#c8d6e5'},
+  {key:'sicherheitIhrerLiebe', label:'Sicherheit ihrer Liebe',        color:'#1dd1a1'},
+  {key:'vertrauenIhr',      label:'Vertrauen in sie',                 color:'#10ac84'},
+  {key:'vertrauenGefuehle', label:'Vertrauen in eigene Gefühle',      color:'#576574'},
+  {key:'umzugsfrage',       label:'"Umzug"-Frage',                    color:'#ee5253'},
+  {key:'stimmung',          label:'Stimmung',                         color:'#5fdd9d'},
+  {key:'stress',            label:'Stress',                           color:'#ff9f43'},
+  {key:'energie',           label:'Energie',                          color:'#a3e635'},
+  {key:'schlaf',            label:'Schlaf (h)',                       color:'#5eead4'},
+  {key:'hunger',            label:'Hunger/Sättigung',                 color:'#e2a6ff'},
+  {key:'verlangen',         label:'Verlangen',                        color:'#f472b6'},
 ];
 let activeMetrics = new Set(['verliebtheit']);
 let chartInstance = null;
 
 const KONTAKTART_LABEL = { kein:'Kein Kontakt', chat:'Chat', snapchat:'Snapchat', instagram:'Instagram', telefon:'Telefon', treffen:'Treffen' };
 const KONTAKTWANN_LABEL = { jetzt:'gerade eben', '1h':'vor einer Stunde', '4h':'vor 4 Stunden', heute:'heute früher', gestern:'gestern' };
+const KONTAKTDAUER_LABEL = { '0':'0 Min', '10':'10 Min', '30':'30 Min', '60':'1 Std', '120plus':'2 Std+' };
 function kontaktText(e){
   const k = e.kontakt;
   if(!k || !k.art) return '–';
   const art = KONTAKTART_LABEL[k.art] || k.art;
   const wann = k.wann ? KONTAKTWANN_LABEL[k.wann] : '';
-  return wann ? art + ' · ' + wann : art;
+  const dauer = k.dauer ? KONTAKTDAUER_LABEL[k.dauer] : '';
+  return [art, wann, dauer].filter(Boolean).join(' · ');
 }
 
 function renderStats(){
@@ -1021,18 +1271,18 @@ function renderHistory(){
   tbody.innerHTML = '';
   document.getElementById('history-empty').style.display = entries.length ? 'none' : 'block';
 
+  const dash = v => typeof v === 'number' ? v : '–';
   [...entries].reverse().forEach(e => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${e.dateStr||''}</td><td>${e.timeStr||''}</td>
-      <td>${e.verliebtheit}</td><td>${e.vorfreude}</td><td>${e.wohl}</td>
-      <td>${e.unsicherheit}</td><td>${kontaktText(e)}</td>
-      <td>${e.stimmung}</td><td>${e.stress}</td><td>${e.energie}</td>
-      <td>${e.schlaf}h</td><td>${e.hunger}</td><td>${e.verlangen}</td>
-      <td>${[
-        ...HABITS.filter(h => e[h.key] === true).map(h => h.label.split(' ')[0]),
-        ...(Array.isArray(e.customTriggers) ? e.customTriggers.map(n => '✏️' + n) : [])
-      ].join(' ') || '–'}</td>
+      <td>${dash(e.verliebtheit)}</td><td>${dash(e.liebe)}</td><td>${dash(e.anziehung)}</td>
+      <td>${dash(e.alltagswunsch)}</td><td>${dash(e.zukunftswunsch)}</td>
+      <td>${dash(e.vorfreude)}</td><td>${dash(e.wohl)}</td>
+      <td>${dash(e.unsicherheit)}</td><td>${kontaktText(e)}</td>
+      <td>${dash(e.stimmung)}</td><td>${dash(e.stress)}</td><td>${dash(e.energie)}</td>
+      <td>${e.schlaf}h</td><td>${dash(e.hunger)}</td><td>${dash(e.verlangen)}</td>
+      <td>${activeTriggerLabels(e).join(', ') || '–'}</td>
       <td><span class="row-del" data-id="${e.id}">löschen</span></td>
     `;
     tbody.appendChild(tr);
@@ -1092,16 +1342,17 @@ function showEntryDetail(e){
   document.getElementById('entry-detail-title').textContent = (e.dateStr||'') + ' · ' + (e.timeStr||'');
 
   const rows = [];
+  if(typeof e.verliebtheit === 'number'){
+    const migriertHint = e.migriert ? ' <span style="color:var(--cream-dim);font-size:12px;">(geschätzt aus altem Wert)</span>' : '';
+    rows.push(`<div><b style="color:var(--accent-soft);">Verliebtheit (Gesamt):</b> ${e.verliebtheit} / 10${migriertHint}</div>`);
+  }
   SCALES.forEach(s => {
     if(typeof e[s.key] === 'number') rows.push(`<div><b style="color:var(--accent-soft);">${s.label}:</b> ${e[s.key]} / 10</div>`);
   });
   rows.push(`<div><b style="color:var(--accent-soft);">Schlaf:</b> ${e.schlaf} h</div>`);
   rows.push(`<div><b style="color:var(--accent-soft);">Letzter Kontakt:</b> ${kontaktText(e)}</div>`);
 
-  const activeTriggers = [
-    ...HABITS.filter(h => e[h.key] === true).map(h => h.label),
-    ...(Array.isArray(e.customTriggers) ? e.customTriggers.map(n => '✏️ ' + n) : [])
-  ];
+  const activeTriggers = activeTriggerLabels(e);
   rows.push(`<div><b style="color:var(--accent-soft);">Trigger:</b> ${activeTriggers.length ? activeTriggers.join(', ') : '–'}</div>`);
 
   if(e.notizen){
@@ -1118,6 +1369,164 @@ document.getElementById('entry-detail-close').addEventListener('click', () => {
 document.getElementById('entry-detail-overlay').addEventListener('click', (evt) => {
   if(evt.target.id === 'entry-detail-overlay') evt.currentTarget.style.display = 'none';
 });
+
+/* ============================================================
+   8c) PROGNOSE: Vorhersage für morgen vs. tatsächlicher Wert
+   ============================================================ */
+const PROGNOSE_KEYS = [
+  {key:'liebe',          label:'❤️ Emotionale Liebe'},
+  {key:'anziehung',      label:'😍 Anziehung'},
+  {key:'alltagswunsch',  label:'🏠 Alltagswunsch'},
+  {key:'zukunftswunsch', label:'💍 Zukunftswunsch'},
+];
+const prognoseValues = {};
+PROGNOSE_KEYS.forEach(p => prognoseValues[p.key] = null);
+let predictions = [];
+
+function buildPrognoseScales(){
+  const container = document.getElementById('scales-prognose');
+  PROGNOSE_KEYS.forEach(p => {
+    const wrap = document.createElement('div');
+    wrap.className = 'scale';
+    wrap.id = 'pscale-' + p.key;
+
+    const head = document.createElement('div');
+    head.className = 'scale-head';
+    head.innerHTML = `<span class="scale-label">${p.label}</span><span class="scale-value" id="psv-${p.key}">–</span>`;
+    wrap.appendChild(head);
+
+    const btns = document.createElement('div');
+    btns.className = 'scale-btns';
+    for(let v = 1; v <= 10; v++){
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = v;
+      b.addEventListener('click', () => {
+        prognoseValues[p.key] = v;
+        wrap.querySelectorAll('.scale-btns button').forEach((bb, i) => bb.classList.toggle('sel', i + 1 === v));
+        document.getElementById('psv-' + p.key).textContent = v;
+      });
+      btns.appendChild(b);
+    }
+    wrap.appendChild(btns);
+    container.appendChild(wrap);
+  });
+}
+
+function tomorrowDateStr(){
+  return new Date(Date.now() + 864e5).toLocaleDateString('de-DE');
+}
+
+function updatePrognoseTargetDisplay(){
+  document.getElementById('prognose-target-display').textContent = 'Vorhersage gilt für: ' + tomorrowDateStr();
+}
+updatePrognoseTargetDisplay();
+
+document.getElementById('prognose-save-btn').addEventListener('click', async () => {
+  const statusEl = document.getElementById('prognose-status');
+  if(!db || !currentUid){
+    statusEl.textContent = 'Noch nicht mit Firebase verbunden.';
+    statusEl.className = 'err';
+    return;
+  }
+  const missing = PROGNOSE_KEYS.filter(p => prognoseValues[p.key] === null);
+  if(missing.length){
+    statusEl.textContent = 'Bitte alle vier Werte antippen.';
+    statusEl.className = 'err';
+    return;
+  }
+  const targetDateStr = tomorrowDateStr();
+  const btn = document.getElementById('prognose-save-btn');
+  btn.disabled = true;
+  try{
+    await db.collection('predictions').add({
+      uid: currentUid,
+      targetDateStr,
+      predicted: {
+        liebe: prognoseValues.liebe,
+        anziehung: prognoseValues.anziehung,
+        alltagswunsch: prognoseValues.alltagswunsch,
+        zukunftswunsch: prognoseValues.zukunftswunsch
+      },
+      createdAt: firebase.firestore.Timestamp.now()
+    });
+    statusEl.textContent = 'Vorhersage für ' + targetDateStr + ' gespeichert.';
+    statusEl.className = 'ok';
+    PROGNOSE_KEYS.forEach(p => {
+      prognoseValues[p.key] = null;
+      document.getElementById('psv-' + p.key).textContent = '–';
+      document.querySelectorAll('#pscale-' + p.key + ' .scale-btns button').forEach(b => b.classList.remove('sel'));
+    });
+    loadPredictions();
+  } catch(err){
+    statusEl.textContent = 'Fehler: ' + err.message;
+    statusEl.className = 'err';
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+async function loadPredictions(){
+  if(!db || !currentUid) return;
+  try{
+    const snap = await db.collection('predictions').where('uid', '==', currentUid).get();
+    predictions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderPrognose();
+  } catch(err){
+    console.error('Prognosen konnten nicht geladen werden', err);
+  }
+}
+
+function findActualForDate(dateStr){
+  const matches = entries.filter(e => e.dateStr === dateStr);
+  if(!matches.length) return null;
+  return matches[matches.length - 1]; // letzter Eintrag des Tages
+}
+
+function renderPrognose(){
+  updatePrognoseTargetDisplay();
+  const tbody = document.getElementById('prognose-tbody');
+  tbody.innerHTML = '';
+  document.getElementById('prognose-empty').style.display = predictions.length ? 'none' : 'block';
+
+  const errors = { liebe: [], anziehung: [], alltagswunsch: [], zukunftswunsch: [] };
+
+  [...predictions].sort((a, b) => (b.targetDateStr || '').localeCompare(a.targetDateStr || '')).forEach(p => {
+    const actual = findActualForDate(p.targetDateStr);
+    const cell = (key) => {
+      const pred = p.predicted ? p.predicted[key] : null;
+      if(pred == null) return '–';
+      if(!actual || typeof actual[key] !== 'number') return pred + ' / –';
+      const diff = actual[key] - pred;
+      errors[key].push(diff);
+      return `${pred} / ${actual[key]} (${diff >= 0 ? '+' : ''}${diff})`;
+    };
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${p.targetDateStr || ''}</td><td>${cell('liebe')}</td><td>${cell('anziehung')}</td><td>${cell('alltagswunsch')}</td><td>${cell('zukunftswunsch')}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  const biasOut = document.getElementById('prognose-bias-out');
+  biasOut.innerHTML = '';
+  const labelMap = { liebe: 'Liebe', anziehung: 'Anziehung', alltagswunsch: 'Alltagswunsch', zukunftswunsch: 'Zukunftswunsch' };
+  let anyBias = false;
+  Object.keys(errors).forEach(key => {
+    const arr = errors[key];
+    if(arr.length < 2) return;
+    const avg = arr.reduce((a, b) => a + b, 0) / arr.length;
+    if(Math.abs(avg) < 0.3) return;
+    anyBias = true;
+    const richtung = avg > 0 ? 'zu pessimistisch' : 'zu optimistisch';
+    const div = document.createElement('div');
+    div.className = 'insight';
+    div.innerHTML = `Bei <b>${labelMap[key]}</b> schätzt du im Schnitt <b>${richtung}</b> (Ø Abweichung: ${avg >= 0 ? '+' : ''}${avg.toFixed(1)}).`;
+    biasOut.appendChild(div);
+  });
+  const enoughData = Object.values(errors).some(a => a.length >= 2);
+  if(!anyBias && enoughData){
+    biasOut.innerHTML = '<div class="insight">Deine Vorhersagen sind bisher ziemlich treffsicher – keine systematische Verzerrung erkennbar.</div>';
+  }
+}
 
 /* ============================================================
    9) ANALYSE: KORRELATIONEN
@@ -1142,11 +1551,10 @@ function renderAnalysis(){
   document.getElementById('analysis-empty').style.display = entries.length < 5 ? 'block' : 'none';
   if(entries.length < 5) return;
 
-  const target = entries.map(e => e.verliebtheit);
-
   METRICS.filter(m => m.key !== 'verliebtheit').forEach(m => {
-    const vals = entries.map(e => e[m.key]);
-    const r = pearson(target, vals);
+    const pairs = entries.filter(e => typeof e[m.key] === 'number' && typeof e.verliebtheit === 'number');
+    if(pairs.length < 5) return;
+    const r = pearson(pairs.map(e => e.verliebtheit), pairs.map(e => e[m.key]));
     if(r === null || Math.abs(r) < 0.2) return;
     const richtung = r > 0 ? 'steigt' : 'sinkt';
     const staerke = Math.abs(r) > 0.6 ? 'deutlich' : (Math.abs(r) > 0.4 ? 'spürbar' : 'leicht');
@@ -1195,9 +1603,24 @@ function renderAnalysis(){
     }
   }
 
-  HABITS.forEach(h => {
-    const mit = entries.filter(e => e[h.key] === true).map(e => e.verliebtheit);
-    const ohne = entries.filter(e => e[h.key] !== true).map(e => e.verliebtheit);
+  const DAUER_ORD = { '0':1, '10':2, '30':3, '60':4, '120plus':5 };
+  const dauerPairs = entries.filter(e => e.kontakt && e.kontakt.dauer && DAUER_ORD[e.kontakt.dauer] && typeof e.verliebtheit === 'number');
+  if(dauerPairs.length >= 5){
+    const r = pearson(dauerPairs.map(e => DAUER_ORD[e.kontakt.dauer]), dauerPairs.map(e => e.verliebtheit));
+    if(r !== null && Math.abs(r) >= 0.2){
+      const div = document.createElement('div');
+      div.className = 'insight';
+      const satz = r > 0
+        ? `Je <b>mehr Kontakt insgesamt</b> du an einem Tag hattest, desto höher tendenziell deine Verliebtheit (r = ${r.toFixed(2)}).`
+        : `Je <b>mehr Kontakt insgesamt</b> du an einem Tag hattest, desto niedriger tendenziell deine Verliebtheit (r = ${r.toFixed(2)}) – überraschend, oder?`;
+      div.innerHTML = satz;
+      out.appendChild(div);
+    }
+  }
+
+  TRIGGERS.forEach(t => {
+    const mit = entries.filter(e => entryHasTrigger(e, t) && typeof e.verliebtheit === 'number').map(e => e.verliebtheit);
+    const ohne = entries.filter(e => !entryHasTrigger(e, t) && typeof e.verliebtheit === 'number').map(e => e.verliebtheit);
     if(mit.length < 2 || ohne.length < 2) return;
     const avgMit = mit.reduce((a,b)=>a+b,0)/mit.length;
     const avgOhne = ohne.reduce((a,b)=>a+b,0)/ohne.length;
@@ -1206,13 +1629,17 @@ function renderAnalysis(){
     const div = document.createElement('div');
     div.className = 'insight';
     const richtung = diff > 0 ? 'höher' : 'niedriger';
-    div.innerHTML = `An Einträgen mit „<b>${h.label.replace(/^\S+\s/, '')}</b>“ ist deine Verliebtheit im Schnitt <b>${richtung}</b> (${avgMit.toFixed(1)} vs. ${avgOhne.toFixed(1)}, Unterschied: ${diff > 0 ? '+' : ''}${diff.toFixed(1)}).`;
+    div.innerHTML = `An Einträgen mit „<b>${t.label}</b>“ ist deine Verliebtheit im Schnitt <b>${richtung}</b> (${avgMit.toFixed(1)} vs. ${avgOhne.toFixed(1)}, Unterschied: ${diff > 0 ? '+' : ''}${diff.toFixed(1)}).`;
     out.appendChild(div);
   });
 
-  customTriggers.forEach(name => {
-    const mit = entries.filter(e => Array.isArray(e.customTriggers) && e.customTriggers.includes(name)).map(e => e.verliebtheit);
-    const ohne = entries.filter(e => !(Array.isArray(e.customTriggers) && e.customTriggers.includes(name))).map(e => e.verliebtheit);
+  const hasOwnTrigger = (e, name) =>
+    (Array.isArray(e.triggers) && e.triggers.includes(name)) ||
+    (Array.isArray(e.customTriggers) && e.customTriggers.includes(name));
+  const eigeneTrigger = customTriggers.filter(name => !PROMOTED_LEGACY_NAMES.includes(name));
+  eigeneTrigger.forEach(name => {
+    const mit = entries.filter(e => hasOwnTrigger(e, name) && typeof e.verliebtheit === 'number').map(e => e.verliebtheit);
+    const ohne = entries.filter(e => !hasOwnTrigger(e, name) && typeof e.verliebtheit === 'number').map(e => e.verliebtheit);
     if(mit.length < 2 || ohne.length < 2) return;
     const avgMit = mit.reduce((a,b)=>a+b,0)/mit.length;
     const avgOhne = ohne.reduce((a,b)=>a+b,0)/ohne.length;
@@ -1242,6 +1669,7 @@ document.addEventListener('gesturestart', e => e.preventDefault());
 document.addEventListener('dblclick', e => e.preventDefault());
 
 buildScales();
+buildPrognoseScales();
 setSchlaf(7);
 initFirebase();
 setupMessaging();
