@@ -257,6 +257,7 @@
 
       <div class="field">
         <span class="scale-label">Letzter Kontakt</span>
+        <p class="hint" style="margin-top:0;">Mehrfachauswahl – z. B. telefoniert und danach noch kurz geschrieben.</p>
         <div class="chip-row" id="kontaktart-chips">
           <div class="chip" data-val="kein">Kein Kontakt</div>
           <div class="chip" data-val="chat">Chat</div>
@@ -273,7 +274,7 @@
           <div class="chip" data-val="heute">Heute früher</div>
           <div class="chip" data-val="gestern">Gestern</div>
         </div>
-        <div class="hint" style="margin:14px 0 8px;">Wie viel Kontakt hattest du heute insgesamt?</div>
+        <div class="hint" style="margin:14px 0 8px;">Wie lange hat der Kontakt gedauert?</div>
         <div class="chip-row" id="kontaktdauer-chips">
           <div class="chip" data-val="0">0 Minuten</div>
           <div class="chip" data-val="10">10 Minuten</div>
@@ -646,19 +647,17 @@ document.getElementById('login-btn').addEventListener('click', async () => {
    2) SKALEN-DEFINITION (1–10 Tap-Buttons mit Wortankern)
    ============================================================ */
 const SCALES = [
-  {key:'liebe',            label:'❤️ Emotionale Liebe',                        lo:'kaum spürbar',    hi:'überwältigend',   sect:'s1'},
-  {key:'anziehung',        label:'😍 Anziehung',                                lo:'gering',          hi:'stark',           sect:'s1'},
-  {key:'alltagswunsch',    label:'🏠 Alltagswunsch',                            lo:'kein Bedürfnis',  hi:'sehr groß',       sect:'s1'},
-  {key:'zukunftswunsch',   label:'💍 Zukunftswunsch',                           lo:'kein Bedürfnis',  hi:'sehr groß',       sect:'s1'},
+  {key:'liebe',            label:'❤️ Wie sehr liebst du sie gerade?',           lo:'kaum',            hi:'übermächtig',     sect:'s1'},
+  {key:'anziehung',        label:'😍 Wie stark ist deine körperliche Anziehung zu ihr heute?', lo:'gering', hi:'stark',      sect:'s1'},
+  {key:'alltagswunsch',    label:'🏠 Wie sehr hättest du jetzt Lust auf einen ganz normalen Alltag mit ihr?', lo:'kein Bedürfnis', hi:'sehr groß', sect:'s1'},
+  {key:'zukunftswunsch',   label:'💍 Wie sehr wünschst du dir langfristig eine gemeinsame Zukunft mit ihr?', lo:'kein Bedürfnis', hi:'sehr groß', sect:'s1'},
   {key:'vorfreude',        label:'Vorfreude aufs nächste Treffen',              lo:'gering',          hi:'riesig',          sect:'s1'},
   {key:'wohl',             label:'Wohlgefühl bei dem Gedanken an sie',          lo:'unwohl',          hi:'warm ums Herz',   sect:'s1'},
   {key:'unsicherheit',     label:'Unsicherheit, wie sie zu dir steht',          lo:'sehr sicher',     hi:'sehr unsicher',   sect:'s1'},
   {key:'gedankenfrequenz', label:'🧠 Wie oft musstest du heute an sie denken?', lo:'kaum',            hi:'ständig',         sect:'s1b'},
-  {key:'beruhigung',       label:'😌 Wie beruhigend fühlt sich der Gedanke an sie an?', lo:'gar nicht', hi:'sehr',          sect:'s1b'},
-  {key:'idealisierung',    label:'💭 Wie sehr hast du sie heute idealisiert?', lo:'gar nicht',        hi:'stark',           sect:'s1b'},
-  {key:'sicherheitIhrerLiebe', label:'🔒 Wie sicher bist du dir, dass sie dich liebt?', lo:'gar nicht sicher', hi:'ganz sicher', sect:'s1b'},
-  {key:'vertrauenIhr',     label:'🤝 Wie sehr vertraust du ihr?',               lo:'wenig',           hi:'voll',            sect:'s1b'},
-  {key:'vertrauenGefuehle', label:'🧭 Wie sehr vertraust du deinen eigenen Gefühlen?', lo:'wenig',     hi:'voll',            sect:'s1b'},
+  {key:'idealisierung',    label:'💭 Wie sehr hast du dir heute ein „perfektes" Bild von ihr gemacht?', lo:'gar nicht', hi:'stark', sect:'s1b'},
+  {key:'vertrauenIhr',     label:'🤝 Wie sehr vertraust du ihr (z. B. dass sie ehrlich zu dir ist)?', lo:'wenig', hi:'voll', sect:'s1b'},
+  {key:'vertrauenGefuehle', label:'🧭 Wie sehr vertraust du dir gerade selbst?', lo:'wenig',          hi:'voll',            sect:'s1b'},
   {key:'umzugsfrage',      label:'🚚 „Ich ziehe in deine Stadt" – wie würdest du dich fühlen?', lo:'überfordert', hi:'größte Freude', sect:'s1b'},
   {key:'stimmung',         label:'Stimmung allgemein',                          lo:'mies',            hi:'super',           sect:'s2'},
   {key:'stress',           label:'Stresslevel',                                 lo:'entspannt',       hi:'am Limit',        sect:'s2'},
@@ -731,8 +730,9 @@ document.getElementById('prefill-btn').addEventListener('click', () => {
   });
   if(typeof last.schlaf === 'number') setSchlaf(last.schlaf);
   if(last.kontakt && last.kontakt.art){
-    kontaktArt = last.kontakt.art;
-    document.querySelectorAll('#kontaktart-chips .chip').forEach(c => c.classList.toggle('active', c.dataset.val === kontaktArt));
+    const artList = Array.isArray(last.kontakt.art) ? last.kontakt.art : [last.kontakt.art];
+    kontaktArtSet = new Set(artList);
+    document.querySelectorAll('#kontaktart-chips .chip').forEach(c => c.classList.toggle('active', kontaktArtSet.has(c.dataset.val)));
   }
   showStatus('Übernommen – jetzt nur noch anpassen, was heute anders ist.', true);
 });
@@ -752,14 +752,20 @@ document.getElementById('schlaf-plus').addEventListener('click', () => setSchlaf
 /* ============================================================
    4) CHIPS: KONTAKT + GEWOHNHEITEN
    ============================================================ */
-let kontaktArt = null;
+let kontaktArtSet = new Set(); // Mehrfachauswahl möglich (z.B. telefoniert + geschrieben)
 let kontaktWann = null;
 let kontaktDauer = null;
 document.querySelectorAll('#kontaktart-chips .chip').forEach(chip => {
   chip.addEventListener('click', () => {
-    kontaktArt = chip.dataset.val;
-    document.querySelectorAll('#kontaktart-chips .chip').forEach(c => c.classList.remove('active'));
-    chip.classList.add('active');
+    const val = chip.dataset.val;
+    if(val === 'kein'){
+      kontaktArtSet.clear();
+      kontaktArtSet.add('kein');
+    } else {
+      kontaktArtSet.delete('kein');
+      if(kontaktArtSet.has(val)) kontaktArtSet.delete(val); else kontaktArtSet.add(val);
+    }
+    document.querySelectorAll('#kontaktart-chips .chip').forEach(c => c.classList.toggle('active', kontaktArtSet.has(c.dataset.val)));
   });
 });
 document.querySelectorAll('#kontaktwann-chips .chip').forEach(chip => {
@@ -889,21 +895,39 @@ function activeTriggerLabels(e){
   return [...predefined, ...customFromNew, ...customFromLegacy];
 }
 
+let expandedTriggerCats = new Set(); // welche Kategorien gerade aufgeklappt sind (Standard: alle zu, wegen der Menge an Triggern)
+
+function buildTriggerCatBlock(wrap, catKey, catLabel, items, renderChip){
+  const catDiv = document.createElement('div');
+  catDiv.className = 'trigger-cat';
+
+  const expanded = expandedTriggerCats.has(catKey);
+  const label = document.createElement('span');
+  label.className = 'trigger-cat-label';
+  label.style.cursor = 'pointer';
+  label.textContent = `${expanded ? '▾' : '▸'} ${catLabel} (${items.length})`;
+  label.addEventListener('click', () => {
+    if(expandedTriggerCats.has(catKey)) expandedTriggerCats.delete(catKey); else expandedTriggerCats.add(catKey);
+    buildTriggerChips();
+  });
+  catDiv.appendChild(label);
+
+  if(expanded){
+    const row = document.createElement('div');
+    row.className = 'chip-row';
+    items.forEach(item => row.appendChild(renderChip(item)));
+    catDiv.appendChild(row);
+  }
+  wrap.appendChild(catDiv);
+}
+
 function buildTriggerChips(){
   const wrap = document.getElementById('trigger-categories');
   wrap.innerHTML = '';
 
   TRIGGER_CATEGORIES.forEach(cat => {
-    const catDiv = document.createElement('div');
-    catDiv.className = 'trigger-cat';
-    const label = document.createElement('span');
-    label.className = 'trigger-cat-label';
-    label.textContent = cat.label;
-    catDiv.appendChild(label);
-
-    const row = document.createElement('div');
-    row.className = 'chip-row';
-    TRIGGERS.filter(t => t.cat === cat.key).forEach(t => {
+    const items = TRIGGERS.filter(t => t.cat === cat.key);
+    buildTriggerCatBlock(wrap, cat.key, cat.label, items, t => {
       const chip = document.createElement('div');
       chip.className = 'chip' + (selectedTriggers.has(t.key) ? ' active' : '');
       chip.textContent = t.label;
@@ -911,24 +935,13 @@ function buildTriggerChips(){
         if(selectedTriggers.has(t.key)){ selectedTriggers.delete(t.key); chip.classList.remove('active'); }
         else { selectedTriggers.add(t.key); chip.classList.add('active'); }
       });
-      row.appendChild(chip);
+      return chip;
     });
-    catDiv.appendChild(row);
-    wrap.appendChild(catDiv);
   });
 
   const eigene = customTriggers.filter(name => !PROMOTED_LEGACY_NAMES.includes(name));
   if(eigene.length){
-    const catDiv = document.createElement('div');
-    catDiv.className = 'trigger-cat';
-    const label = document.createElement('span');
-    label.className = 'trigger-cat-label';
-    label.textContent = '✏️ Eigene';
-    catDiv.appendChild(label);
-
-    const row = document.createElement('div');
-    row.className = 'chip-row';
-    eigene.forEach(name => {
+    buildTriggerCatBlock(wrap, 'eigene', '✏️ Eigene', eigene, name => {
       const chip = document.createElement('div');
       chip.className = 'chip' + (selectedTriggers.has(name) ? ' active' : '');
       chip.textContent = '✏️ ' + name;
@@ -936,10 +949,8 @@ function buildTriggerChips(){
         if(selectedTriggers.has(name)){ selectedTriggers.delete(name); chip.classList.remove('active'); }
         else { selectedTriggers.add(name); chip.classList.add('active'); }
       });
-      row.appendChild(chip);
+      return chip;
     });
-    catDiv.appendChild(row);
-    wrap.appendChild(catDiv);
   }
 }
 buildTriggerChips();
@@ -1101,13 +1112,11 @@ document.getElementById('save-btn').addEventListener('click', async () => {
     wohl: scaleValues.wohl,
     unsicherheit: scaleValues.unsicherheit,
     gedankenfrequenz: scaleValues.gedankenfrequenz,
-    beruhigung: scaleValues.beruhigung,
     idealisierung: scaleValues.idealisierung,
-    sicherheitIhrerLiebe: scaleValues.sicherheitIhrerLiebe,
     vertrauenIhr: scaleValues.vertrauenIhr,
     vertrauenGefuehle: scaleValues.vertrauenGefuehle,
     umzugsfrage: scaleValues.umzugsfrage,
-    kontakt: { art: kontaktArt, wann: kontaktWann, dauer: kontaktDauer },
+    kontakt: { art: Array.from(kontaktArtSet), wann: kontaktWann, dauer: kontaktDauer },
     stimmung: scaleValues.stimmung,
     stress: scaleValues.stress,
     energie: scaleValues.energie,
@@ -1136,7 +1145,7 @@ function resetForm(){
   SCALES.forEach(s => clearScaleSelection(s.key));
   selectedTriggers.clear();
   buildTriggerChips();
-  kontaktArt = null;
+  kontaktArtSet.clear();
   kontaktWann = null;
   kontaktDauer = null;
   document.querySelectorAll('#kontaktart-chips .chip, #kontaktwann-chips .chip, #kontaktdauer-chips .chip').forEach(c => c.classList.remove('active'));
@@ -1192,9 +1201,7 @@ const METRICS = [
   {key:'wohl',              label:'Wohlgefühl',                       color:'#a78bfa'},
   {key:'unsicherheit',      label:'Unsicherheit',                     color:'#ff8095'},
   {key:'gedankenfrequenz',  label:'Gedankenfrequenz',                 color:'#00d2d3'},
-  {key:'beruhigung',        label:'Beruhigung durch Gedanken',        color:'#48dbfb'},
   {key:'idealisierung',     label:'Idealisierung',                    color:'#c8d6e5'},
-  {key:'sicherheitIhrerLiebe', label:'Sicherheit ihrer Liebe',        color:'#1dd1a1'},
   {key:'vertrauenIhr',      label:'Vertrauen in sie',                 color:'#10ac84'},
   {key:'vertrauenGefuehle', label:'Vertrauen in eigene Gefühle',      color:'#576574'},
   {key:'umzugsfrage',       label:'"Umzug"-Frage',                    color:'#ee5253'},
@@ -1211,10 +1218,20 @@ let chartInstance = null;
 const KONTAKTART_LABEL = { kein:'Kein Kontakt', chat:'Chat', snapchat:'Snapchat', instagram:'Instagram', telefon:'Telefon', treffen:'Treffen' };
 const KONTAKTWANN_LABEL = { jetzt:'gerade eben', '1h':'vor einer Stunde', '4h':'vor 4 Stunden', heute:'heute früher', gestern:'gestern' };
 const KONTAKTDAUER_LABEL = { '0':'0 Min', '10':'10 Min', '30':'30 Min', '60':'1 Std', '120plus':'2 Std+' };
+/* kontakt.art ist bei alten Einträgen ein einzelner String, seit der Mehrfachauswahl ein Array. */
+function kontaktArtList(e){
+  const art = e.kontakt && e.kontakt.art;
+  if(!art) return [];
+  return Array.isArray(art) ? art : [art];
+}
+function kontaktHasArt(e, val){
+  return kontaktArtList(e).includes(val);
+}
 function kontaktText(e){
   const k = e.kontakt;
-  if(!k || !k.art) return '–';
-  const art = KONTAKTART_LABEL[k.art] || k.art;
+  const artList = kontaktArtList(e);
+  if(!k || !artList.length) return '–';
+  const art = artList.map(a => KONTAKTART_LABEL[a] || a).join(' + ');
   const wann = k.wann ? KONTAKTWANN_LABEL[k.wann] : '';
   const dauer = k.dauer ? KONTAKTDAUER_LABEL[k.dauer] : '';
   return [art, wann, dauer].filter(Boolean).join(' · ');
@@ -1564,8 +1581,8 @@ function renderAnalysis(){
     out.appendChild(div);
   });
 
-  const mitTreffen = entries.filter(e => e.kontakt && e.kontakt.art === 'treffen').map(e => e.verliebtheit);
-  const ohneTreffen = entries.filter(e => !e.kontakt || e.kontakt.art !== 'treffen').map(e => e.verliebtheit);
+  const mitTreffen = entries.filter(e => kontaktHasArt(e, 'treffen')).map(e => e.verliebtheit);
+  const ohneTreffen = entries.filter(e => !kontaktHasArt(e, 'treffen')).map(e => e.verliebtheit);
   if(mitTreffen.length && ohneTreffen.length){
     const avgA = mitTreffen.reduce((a,b)=>a+b,0)/mitTreffen.length;
     const avgB = ohneTreffen.reduce((a,b)=>a+b,0)/ohneTreffen.length;
@@ -1576,8 +1593,8 @@ function renderAnalysis(){
     out.appendChild(div);
   }
 
-  const keinKontakt = entries.filter(e => e.kontakt && e.kontakt.art === 'kein').map(e => e.verliebtheit);
-  const mitKontakt = entries.filter(e => e.kontakt && e.kontakt.art && e.kontakt.art !== 'kein').map(e => e.verliebtheit);
+  const keinKontakt = entries.filter(e => kontaktHasArt(e, 'kein')).map(e => e.verliebtheit);
+  const mitKontakt = entries.filter(e => kontaktArtList(e).length && !kontaktHasArt(e, 'kein')).map(e => e.verliebtheit);
   if(keinKontakt.length && mitKontakt.length){
     const avgA = keinKontakt.reduce((a,b)=>a+b,0)/keinKontakt.length;
     const avgB = mitKontakt.reduce((a,b)=>a+b,0)/mitKontakt.length;
@@ -1611,8 +1628,8 @@ function renderAnalysis(){
       const div = document.createElement('div');
       div.className = 'insight';
       const satz = r > 0
-        ? `Je <b>mehr Kontakt insgesamt</b> du an einem Tag hattest, desto höher tendenziell deine Verliebtheit (r = ${r.toFixed(2)}).`
-        : `Je <b>mehr Kontakt insgesamt</b> du an einem Tag hattest, desto niedriger tendenziell deine Verliebtheit (r = ${r.toFixed(2)}) – überraschend, oder?`;
+        ? `Je <b>länger der Kontakt gedauert</b> hat, desto höher tendenziell deine Verliebtheit (r = ${r.toFixed(2)}).`
+        : `Je <b>länger der Kontakt gedauert</b> hat, desto niedriger tendenziell deine Verliebtheit (r = ${r.toFixed(2)}) – überraschend, oder?`;
       div.innerHTML = satz;
       out.appendChild(div);
     }
